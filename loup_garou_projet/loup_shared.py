@@ -79,7 +79,7 @@ ROLE_CATALOG = {
         "max": 1,
         "night_action": True,
         "weight": 1.3,
-        "description": "Chaque nuit, vous protégez un joueur de l'attaque des loups. Vous ne pouvez pas protéger la même personne deux nuits consécutives.",
+        "description": "Chaque nuit, vous agissez EN PREMIER (avant les loups et le Pyromane) pour protéger un joueur contre toute attaque nocturne. Vous ne pouvez pas protéger la même personne deux nuits consécutives. Vous pouvez vous protéger vous-même.",
         "ui_icon": "SA",
     },
     "Renard": {
@@ -168,14 +168,15 @@ EXCLUSIVE_ROLE_GROUPS = [
 ]
 
 # Ordre officiel des tours de nuit
+# Le Salvateur agit EN PREMIER (avant les loups) pour pouvoir protéger avant toute mort.
 NIGHT_ORDER = [
     "cupidon",    # nuit 1 seulement
     "wild_child", # nuit 1 seulement
+    "salvateur",  # protège AVANT les loups et le Pyromane
     "seer",
     "wolves",
     "father",
     "witch",
-    "salvateur",
     "fox",
     "siren",
     "arsonist",
@@ -426,11 +427,16 @@ def serialize_players_for(player_id, players, reveal_all=False):
     """
     Sérialise la liste des joueurs du point de vue de player_id.
     Inclut les informations sur les amoureux, les envoûtés, les aspergés, etc.
+
+    Règles de visibilité :
+    - is_charmed : visible uniquement par la Sirène (liste complète) et par le joueur concerné lui-même.
+    - is_fueled  : visible uniquement par le Pyromane.
     """
     data = []
     current_player = players[player_id] if 0 <= player_id < len(players) else None
     current_is_wolf_side = is_wolf_player(current_player) if current_player else False
     my_lover_id = current_player.get("lover_id") if current_player else None
+    current_role = current_player.get("role") if current_player else None
 
     # Récupère les amoureux côté serveur pour savoir qui peut voir "is_lover"
     cupidon_id = None
@@ -440,6 +446,18 @@ def serialize_players_for(player_id, players, reveal_all=False):
             break
 
     for p in players:
+        # Sirène : seule elle voit tous les envoûtés ; un envoûté ne sait que son propre état
+        can_see_charmed_for_p = (
+            reveal_all
+            or current_role == "Sirène"
+            or p["id"] == player_id  # le joueur sait s'il est lui-même envoûté
+        )
+        # Pyromane : seul lui voit les aspergés
+        can_see_fueled_for_p = (
+            reveal_all
+            or current_role == "Pyromane"
+        )
+
         entry = {
             "id":             p["id"],
             "name":           p["name"],
@@ -449,8 +467,8 @@ def serialize_players_for(player_id, players, reveal_all=False):
             # is_lover visible uniquement : soi-même, son partenaire, Cupidon, fin de partie
             "is_lover":       False,
             "lover_id":       None,
-            "is_charmed":     p.get("is_charmed", False),
-            "is_fueled":      p.get("is_fueled", False),
+            "is_charmed":     p.get("is_charmed", False) if can_see_charmed_for_p else False,
+            "is_fueled":      p.get("is_fueled", False) if can_see_fueled_for_p else False,
             "wild_child_turned": False,
             "maudit_converted":  False,
         }

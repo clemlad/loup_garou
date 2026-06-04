@@ -505,6 +505,8 @@ class WerewolfSoloGame:
             t = self._chain_cupidon(t)
             t = self._chain_wild_child(t)
 
+        # Le Salvateur protège EN PREMIER (avant les loups et le Pyromane)
+        t = self._chain_salvateur(t)
         t = self._chain_wolves(t)
 
     def _chain_cupidon(self, t: int) -> int:
@@ -735,7 +737,7 @@ class WerewolfSoloGame:
         """
         witch = next((p for p in self.players if p["alive"] and p["role"] == "Sorcière"), None)
         if not witch:
-            return self._chain_salvateur(t)
+            return self._chain_fox(t)
         self.schedule(t, lambda: self.night_msg("La Sorcière se réveille..."))
         t += 900
         if witch["id"] == self.player_id:
@@ -761,18 +763,19 @@ class WerewolfSoloGame:
             t += 1600
             self.schedule(t, lambda: self.night_msg("La Sorcière se rendort."))
             t += 900
-            return self._chain_salvateur(t)
+            return self._chain_fox(t)
 
     def _chain_salvateur(self, t: int) -> int:
         """
         Planifie le tour du Salvateur dans la chaîne de nuit.
+        Le Salvateur agit EN PREMIER, avant les loups et le Pyromane.
 
         :param t: Temps de départ en millisecondes (int).
         :return: Nouveau temps de départ pour la prochaine étape (int).
         """
         sal = next((p for p in self.players if p["alive"] and p["role"] == "Salvateur"), None)
         if not sal:
-            return self._chain_fox(t)
+            return self._chain_wolves(t)
         self.schedule(t, lambda: self.night_msg("Le Salvateur veille sur le village..."))
         t += 900
         if sal["id"] == self.player_id:
@@ -794,7 +797,7 @@ class WerewolfSoloGame:
             t += 1200
             self.schedule(t, lambda: self.night_msg("Le Salvateur se rendort."))
             t += 800
-            return self._chain_fox(t)
+            return self._chain_wolves(t)
 
     def _chain_fox(self, t: int) -> int:
         """
@@ -1003,13 +1006,13 @@ class WerewolfSoloGame:
             self.cupidon_pending = False
             self.schedule(t, lambda: self.night_msg("Cupidon se rendort."))
             t += 900
-            self.schedule(t, lambda: self._chain_wild_child_then_wolves(t))
+            self.schedule(t, lambda: self._chain_wild_child_then_salvateur_then_wolves(t))
             return
         if self.wild_child_pending:
             self.wild_child_pending = False
             self.schedule(t, lambda: self.night_msg("L'Enfant sauvage se rendort."))
             t += 900
-            self.schedule(t, lambda: setattr(self, '_resume_wolves_time', self.game_ms + t) or self._do_chain_wolves(t))
+            self._schedule_chain(self._chain_salvateur, t)
             return
         if self.father_pending:
             self.father_pending = False
@@ -1040,11 +1043,12 @@ class WerewolfSoloGame:
         elif role == "Sorcière":
             self.schedule(t, lambda: self.night_msg("La Sorcière se rendort."))
             t += 900
-            self._schedule_chain(self._chain_salvateur, t)
+            self._schedule_chain(self._chain_fox, t)
         elif role == "Salvateur":
+            # Salvateur avant loups : la suite est la chaîne des loups
             self.schedule(t, lambda: self.night_msg("Le Salvateur se rendort."))
             t += 800
-            self._schedule_chain(self._chain_fox, t)
+            self._schedule_chain(self._chain_wolves, t)
         elif role == "Sirène":
             self.schedule(t, lambda: self.night_msg("La Sirène se tait."))
             t += 800
@@ -1064,6 +1068,21 @@ class WerewolfSoloGame:
         :param t: Délai en millisecondes avant l'appel (int).
         """
         self.schedule(t, lambda: fn(0))
+
+    def _chain_wild_child_then_salvateur_then_wolves(self, t: int):
+        """
+        Enchaîne : Enfant sauvage → Salvateur → Loups depuis Cupidon (nuit 1).
+
+        :param t: Paramètre de temps non utilisé directement (int).
+        """
+        new_t = self._chain_wild_child(0)
+        if not self.wild_child_pending:
+            sal_t = self._chain_salvateur(new_t)
+            if not self.pending_night.get("salvateur_done") is False:
+                # Le Salvateur humain a pris la main, on attend
+                pass
+            else:
+                self._do_chain_wolves(sal_t)
 
     def _chain_wild_child_then_wolves(self, t: int):
         """
@@ -1199,6 +1218,17 @@ class WerewolfSoloGame:
 
         all_dead = self._all_deaths_from(deaths)
         self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
+
+        # Sniper : si la cible meurt cette nuit (pas par vote), le Sniper perd sa condition spéciale
+        if self.sniper_target is not None and self.sniper_target in all_dead:
+            sniper = next((p for p in self.players if p["alive"] and p["role"] == "Sniper"), None)
+            if sniper:
+                tgt_name = self.players[self.sniper_target]["name"]
+                self.add_chat("Système",
+                              f"La cible du Sniper ({tgt_name}) est morte cette nuit ! "
+                              f"Le Sniper perd sa victoire spéciale et continue comme Villageois.",
+                              False)
+                self.sniper_target = None  # Perte de la condition spéciale
 
         # Les Chasseurs morts de nuit agissent APRÈS l'annonce matinale (dans _continue_after_night)
         self.pending_hunter_deaths = [pid for pid in all_dead
@@ -1465,6 +1495,17 @@ class WerewolfSoloGame:
         all_dead = self._all_deaths_from(deaths)
         self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
 
+        # Sniper : si la cible meurt en chaîne (pas directement par vote), perte de condition spéciale
+        if self.sniper_target is not None and self.sniper_target in all_dead and self.sniper_target != chosen:
+            sniper = next((p for p in self.players if p["alive"] and p["role"] == "Sniper"), None)
+            if sniper:
+                tgt_name = self.players[self.sniper_target]["name"]
+                self.add_chat("Système",
+                              f"La cible du Sniper ({tgt_name}) est morte en chaîne ! "
+                              f"Le Sniper perd sa victoire spéciale et continue comme Villageois.",
+                              False)
+                self.sniper_target = None
+
         if role_reveal == "Chasseur" or any(self.players[pid].get("revealed_role") == "Chasseur"
                                              for pid in all_dead):
             hunter_ids = [pid for pid in all_dead
@@ -1596,9 +1637,11 @@ class WerewolfSoloGame:
                     self.fox_power_active = False
                     self.fox_result = "Aucun loup parmi ces 3 joueurs. Tu perds ton pouvoir !"
                     self.night_msg("Le Renard se trompe... et perd son pouvoir !")
+                    self.add_chat("Système", "Renard : aucun loup parmi les 3 joueurs choisis. Pouvoir perdu !", False)
                 else:
                     self.fox_result = "Il y a au moins un loup parmi ces 3 joueurs !"
                     self.night_msg("Le Renard flaire un loup !")
+                    self.add_chat("Système", "Renard : un loup se cache parmi les 3 joueurs choisis !", False)
                 self.pending_night["fox_done"] = True
                 self.selected_target  = None
                 self.fox_selections   = []
@@ -2007,12 +2050,22 @@ class WerewolfSoloGame:
 
         f = self.fonts()
         my_role  = self.current_role()
+
+        # Un joueur converti (Enfant sauvage ou Villageois Maudit) compte comme loup
+        # → les autres loups peuvent voir son rôle
+        p_is_wolf_side = is_wolf_player(p)
         reveal   = (is_dead or is_me
-                    or (is_wolf_player(self.current_player()) and is_wolf_player(p))
+                    or (is_wolf_player(self.current_player()) and p_is_wolf_side)
                     or (self.current_player().get("is_lover")
                         and self.current_player().get("lover_id") == p["id"]))
         role_str = (p.get("revealed_role") or p.get("role") or "?") if reveal else "?"
-        badge_col = _role_badge_col(role_str)
+
+        # Couleur du badge : rouge si converti côté loups, sinon couleur normale
+        is_converted_wolf = (p.get("wild_child_turned") or p.get("maudit_converted"))
+        if is_converted_wolf and not is_dead:
+            badge_col = ROLE_WOLF_CLR  # Rouge loup
+        else:
+            badge_col = _role_badge_col(role_str)
 
         badge = pygame.Rect(rect.x + 9, rect.y + 9, 40, 30)
         pygame.draw.rect(self.screen, badge_col, badge, border_radius=10)

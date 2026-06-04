@@ -354,7 +354,20 @@ class WerewolfServer:
         fueled_list  = [self.players[i]["name"] for i in self.fueled_players
                         if i < len(self.players)]
 
-        salvateur_last_name = None
+        # Sirène : seule elle peut voir la liste complète des envoûtés.
+        # Un joueur envoûté sait uniquement qu'il l'est lui-même, pas qui sont les autres.
+        if current_role == "Sirène":
+            charmed_list_visible = charmed_list  # La Sirène voit tout
+        elif player_id in self.charmed_players:
+            charmed_list_visible = ["(vous êtes envoûté)"]  # Sait seulement son propre état
+        else:
+            charmed_list_visible = []  # Les autres ne savent rien
+
+        # Pyromane : seul lui voit la liste des aspergés
+        if current_role == "Pyromane":
+            fueled_list_visible = fueled_list
+        else:
+            fueled_list_visible = []  # Les autres ne savent pas qui est aspergé
         if current_role == "Salvateur" and self.salvateur_last_protected is not None:
             if self.salvateur_last_protected < len(self.players):
                 salvateur_last_name = self.players[self.salvateur_last_protected]["name"]
@@ -397,8 +410,8 @@ class WerewolfServer:
             "fox_power_active":       self.fox_power_active,
             "lover_partner_name":     lover_partner_name,
             "mentor_name":            mentor_name,
-            "charmed_list":           charmed_list,
-            "fueled_list":            fueled_list,
+            "charmed_list":           charmed_list_visible,
+            "fueled_list":            fueled_list_visible,
             "salvateur_last_name":    salvateur_last_name,
             "lovers_msg":             lovers_msg,
             "wolf_votes_visible":     wolf_votes_visible,
@@ -797,6 +810,17 @@ class WerewolfServer:
         all_dead = self._all_deaths_from(deaths)
 
         self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
+
+        # Sniper : si la cible meurt cette nuit (pas par vote), perte de la condition spéciale
+        if self.sniper_target is not None and self.sniper_target in all_dead:
+            sniper = next((p for p in self.players if p["alive"] and p["role"] == "Sniper"), None)
+            if sniper:
+                tgt_name = self.players[self.sniper_target]["name"]
+                self.append_chat("Systeme",
+                                 f"La cible du Sniper ({tgt_name}) est morte cette nuit ! "
+                                 f"Le Sniper perd sa victoire spéciale et continue comme Villageois.",
+                                 system=True)
+                self.sniper_target = None
 
         # Queue les Chasseurs morts
         self._queue_hunter_deaths(all_dead)
