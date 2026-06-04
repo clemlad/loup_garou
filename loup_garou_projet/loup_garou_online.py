@@ -15,7 +15,7 @@ from loup_shared import (
     MIN_PLAYERS, MAX_PLAYERS,
     ROLE_CATALOG, CLASSIC_ROLE_NAMES, SPECIAL_ROLE_NAMES, AVAILABLE_ROLES,
     camp_balance, min_players_for_config, normalize_role_config, role_config_error,
-    is_wolf_role, is_wolf_player,
+    is_wolf_role, is_wolf_player, exclusive_role_conflict,
 )
 from server_discovery import get_local_ip
 from loup_ui_theme import (
@@ -467,6 +467,12 @@ class WerewolfOnlineGame:
         if role_name == "Loup-garou":
             val = max(1, val)
         new[role_name] = val
+        # Vérification d'exclusivité (Enfant sauvage ↔ Villageois Maudit)
+        if delta > 0 and val > 0:
+            conflict_msg = exclusive_role_conflict(role_name, self.role_config)
+            if conflict_msg:
+                self.message = f"⚠ {conflict_msg}"
+                return
         if sum(new.values()) > MAX_PLAYERS:
             self.message = f"Trop de roles (max {MAX_PLAYERS} joueurs)."
             return
@@ -775,6 +781,8 @@ class WerewolfOnlineGame:
     def _villager_count(self) -> int:
         """
         Calcule le nombre de Villageois génériques restants après attribution des rôles spéciaux.
+        Les Villageois sont un rôle de remplissage passif : leur nombre est toujours le résidu
+        (joueurs sans rôle spécial) et ne peut pas être augmenté manuellement.
 
         :return: Nombre de Villageois (int), toujours >= 0.
         """
@@ -858,11 +866,16 @@ class WerewolfOnlineGame:
             pls_r = pygame.Rect(row.right - 46,  row.y + 7, 30, 28)
             is_host = self.is_host()
             if rn == "Villageois":
-                minus_en = is_host and self._villager_count() > 0
-                plus_en  = is_host and self.max_players < MAX_PLAYERS
+                # Villageois : pas de boutons +/- (valeur calculée automatiquement)
+                minus_en = False
+                plus_en  = False
             else:
                 minus_en = is_host
-                plus_en  = is_host
+                # Désactiver + si un rôle exclusif est déjà actif
+                if is_host and self.role_config.get(rn, 0) == 0:
+                    plus_en = exclusive_role_conflict(rn, self.role_config) is None
+                else:
+                    plus_en = is_host
             for r2, sym, en_btn in [(min_r, "-", minus_en), (pls_r, "+", plus_en)]:
                 col = (BTN_DANGER if sym == "-" else BTN_SUCCESS) if en_btn else GREY_DARK
                 pygame.draw.rect(self.screen, col, r2, border_radius=9)
@@ -873,6 +886,16 @@ class WerewolfOnlineGame:
             pygame.draw.rect(self.screen, BTN_BORDER, cnt_r, 1, border_radius=9)
             display_count = (self._villager_count() if rn == "Villageois"
                              else self.role_config.get(rn, 0))
+            draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
+                      center=cnt_r.center)
+
+            # Badge "OU" pour les rôles exclusifs (Enfant sauvage / Villageois Maudit)
+            from loup_shared import EXCLUSIVE_ROLE_GROUPS
+            for group in EXCLUSIVE_ROLE_GROUPS:
+                if rn in group:
+                    draw_text(self.screen, "⊘ exclusif", f["xs"], (180, 100, 60),
+                              topleft=(row.x + 52, row.y + 22))
+                    break
             draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
                       center=cnt_r.center)
 

@@ -161,6 +161,12 @@ DEFAULT_ROLE_CONFIG = {
     "Sorcière": 1,
 }
 
+# Groupes de rôles mutuellement exclusifs : dans chaque groupe,
+# un seul rôle peut être actif (count > 0) à la fois.
+EXCLUSIVE_ROLE_GROUPS = [
+    {"Enfant sauvage", "Villageois Maudit"},
+]
+
 # Ordre officiel des tours de nuit
 NIGHT_ORDER = [
     "cupidon",    # nuit 1 seulement
@@ -240,6 +246,24 @@ def check_winner(players):
         return "Village"
     if alive_wolves >= alive_non_wolves:
         return "Loups"
+    return None
+
+
+def exclusive_role_conflict(role_name: str, role_config: dict) -> str | None:
+    """
+    Vérifie si l'ajout du rôle role_name entraîne un conflit d'exclusivité.
+    Retourne un message d'erreur si conflit, sinon None.
+
+    :param role_name: Nom du rôle que l'on tente d'activer (str).
+    :param role_config: Config actuelle {nom_rôle: quantité} (dict).
+    :return: str message d'erreur ou None.
+    """
+    for group in EXCLUSIVE_ROLE_GROUPS:
+        if role_name in group:
+            conflicting = [r for r in group if r != role_name and role_config.get(r, 0) > 0]
+            if conflicting:
+                names = " et ".join(conflicting)
+                return f"« {role_name} » est incompatible avec « {names} » (choisir l'un ou l'autre)."
     return None
 
 
