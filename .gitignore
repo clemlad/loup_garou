@@ -1,0 +1,3 @@
+# Les fichiers de cache
+__pycache__/
+*.pyc
