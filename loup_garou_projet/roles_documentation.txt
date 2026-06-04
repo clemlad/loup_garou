@@ -1,0 +1,400 @@
+================================================================
+        LOUP-GAROU - DOCUMENTATION DES RÔLES
+================================================================
+Version du jeu : multijoueur (loup_server.py) + solo (loup_garou_solo.py)
+Nombre de joueurs : 3 à 12
+
+================================================================
+SOMMAIRE DES CAMPS
+================================================================
+
+LOUPS    → gagner si les loups sont >= villageois restants
+VILLAGE  → gagner si tous les loups sont éliminés
+SOLO     → condition de victoire unique par personnage
+V/LOUPS  → camp changeant selon les événements de la partie
+
+================================================================
+ORDRE OFFICIEL DES TOURS DE NUIT
+================================================================
+
+Nuit 1 seulement :
+  1. Cupidon         — choisit 2 amoureux
+  2. Enfant sauvage  — choisit son mentor
+
+Chaque nuit :
+  3. Voyante         — inspecte un joueur
+  4. Loups           — votent une victime
+  5. Infect Père des Loups  — infecte (nuit suivant le vote loups)
+  6. Sorcière        — soigne ou empoisonne
+  7. Salvateur       — protège un joueur
+  8. Renard          — sonde 3 joueurs
+  9. Sirène          — envoûte un joueur
+ 10. Pyromane        — asperge ou met le feu
+
+================================================================
+RÔLES DU CAMP LOUPS
+================================================================
+
+──────────────────────────────────────────────────────────────
+LOUP-GAROU (LG) — Camp : Loups
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "LOUPS".
+
+Ce qu'il fait :
+  • Chaque nuit, tous les loups votent ensemble pour désigner
+    une victime parmi les joueurs vivants non-loups.
+  • La victime avec le plus de voix est éliminée (égalité :
+    le plus petit ID l'emporte).
+
+Fonctionnalités dans le jeu :
+  • Peut écrire dans le chat la nuit (canal réservé aux loups).
+  • Voit le rôle de ses coéquipiers loups.
+  • Ne peut pas voter contre un autre loup.
+  • Maximum 4 loups dans une partie.
+
+Condition de victoire :
+  • Le camp Loups gagne quand le nombre de loups vivants est
+    supérieur ou égal au nombre de non-loups vivants.
+
+──────────────────────────────────────────────────────────────
+INFECT PÈRE DES LOUPS (IP) — Camp : Loups
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "PÈRE" (juste après le vote des loups).
+
+Ce qu'il fait :
+  • Loup spécial. Une seule fois dans la partie, il peut choisir
+    d'infecter la victime désignée par les loups au lieu de la
+    tuer. La victime infectée devient loup tout en conservant
+    ses capacités d'origine (ex : une Sorcière infectée peut
+    encore utiliser ses potions ET vote avec les loups).
+
+Fonctionnalités dans le jeu :
+  • Participe au vote loup comme les autres loups.
+  • À son tour, choisit INFECTER (si le pouvoir n'a pas encore
+    été utilisé) ou PASSER.
+  • L'infection est secrète : les autres joueurs ne savent pas
+    qui est infecté tant qu'il n'est pas éliminé.
+  • Une fois infectée, la cible compte comme loup pour toutes
+    les conditions de victoire.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que les Loups.
+
+================================================================
+RÔLES DU CAMP VILLAGE
+================================================================
+
+──────────────────────────────────────────────────────────────
+VILLAGEOIS (VI) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • Uniquement le jour (phase de vote).
+
+Ce qu'il fait :
+  • N'a aucun pouvoir spécial.
+  • Vote le jour pour éliminer le joueur le plus suspect.
+
+Fonctionnalités dans le jeu :
+  • Peut écrire dans le chat le jour.
+  • Aucune action nocturne.
+
+Condition de victoire :
+  • Même que le Village.
+
+──────────────────────────────────────────────────────────────
+VOYANTE (VO) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "VOYANTE" (avant les loups).
+
+Ce qu'il fait :
+  • Chaque nuit, choisit un joueur et découvre son rôle exact.
+  • Si la cible est infectée ou est un Enfant sauvage converti,
+    le message le précise.
+
+Fonctionnalités dans le jeu :
+  • L'information est privée : seule la Voyante la voit.
+  • Elle doit utiliser son information pour orienter le vote du
+    village sans trahir son identité.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que le Village.
+
+──────────────────────────────────────────────────────────────
+SORCIÈRE (SO) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "SORCIÈRE" (après le vote des loups).
+
+Ce qu'il fait :
+  • Dispose de deux potions, chacune utilisable UNE seule fois :
+    1. Potion de soin : sauve la victime des loups (la personne
+       désignée cette nuit survit).
+    2. Potion de mort : empoisonne n'importe quel joueur vivant,
+       qui sera éliminé à la fin de la nuit.
+  • Elle peut utiliser les deux potions la même nuit, ou aucune.
+
+Fonctionnalités dans le jeu :
+  • Voit le nom de la victime des loups avant de décider.
+  • Boutons SAUVER, EMPOISONNER, et PASSER.
+  • Le statut de chaque potion (disponible / épuisée) est affiché.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que le Village.
+
+──────────────────────────────────────────────────────────────
+CHASSEUR (CH) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • Au moment de sa mort (nuit ou jour), immédiatement.
+
+Ce qu'il fait :
+  • Quand il est éliminé (quelle que soit la cause), il doit
+    immédiatement choisir un joueur vivant à emporter avec lui.
+  • Ce joueur est éliminé à son tour et ses morts peuvent
+    déclencher d'autres effets (Amoureux, etc.).
+
+Fonctionnalités dans le jeu :
+  • Bouton TIRER affiché dès que le Chasseur est éliminé,
+    même si c'est pendant la phase de jour.
+  • Si le Chasseur est déconnecté, la cible est tirée au hasard.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que le Village.
+
+──────────────────────────────────────────────────────────────
+CUPIDON (CU) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit 1 uniquement, à l'étape "CUPIDON" (en premier).
+
+Ce qu'il fait :
+  • Choisit 2 joueurs qui tombent amoureux.
+  • Si l'un des amoureux meurt (peu importe la cause), l'autre
+    meurt de chagrin immédiatement.
+  • Si les 2 amoureux sont les 2 derniers survivants, ils
+    gagnent ENSEMBLE (victoire Amoureux, quelle que soit leur
+    appartenance au camp).
+
+Fonctionnalités dans le jeu :
+  • Sélection en 2 clics sur la liste des joueurs.
+  • Bouton CONFIRMER LES AMOUREUX activé quand 2 joueurs sont
+    sélectionnés.
+  • Les 2 joueurs connaissent l'identité de leur amoureux.
+  • Maximum 1 par partie.
+
+Condition de victoire (amoureux) :
+  • Les 2 amoureux sont les 2 derniers survivants → Victoire
+    "Amoureux" (victoire spéciale, indépendante du camp).
+
+──────────────────────────────────────────────────────────────
+SALVATEUR (SA) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "SALVATEUR" (après la Sorcière).
+
+Ce qu'il fait :
+  • Chaque nuit, choisit un joueur à protéger de l'attaque des
+    loups. Si ce joueur était la cible des loups cette nuit,
+    il survit.
+  • Il ne peut PAS protéger la même personne deux nuits d'affilée.
+
+Fonctionnalités dans le jeu :
+  • Boutons PROTÉGER (cible sélectionnée) et PASSER.
+  • Le nom du joueur protégé la nuit précédente est affiché
+    (interdit cette nuit).
+  • Il peut se protéger lui-même.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que le Village.
+
+──────────────────────────────────────────────────────────────
+RENARD (RE) — Camp : Village
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "RENARD" (après le Salvateur).
+
+Ce qu'il fait :
+  • Chaque nuit, choisit 3 joueurs vivants. Le jeu lui indique
+    s'il y a au moins un loup parmi eux.
+  • ATTENTION : si aucun des 3 n'est un loup, le Renard perd
+    son pouvoir définitivement pour le reste de la partie.
+
+Fonctionnalités dans le jeu :
+  • Sélection en 3 clics sur la liste des joueurs.
+  • Bouton SENTIR activé quand 3 joueurs sont sélectionnés.
+  • Bouton PASSER pour ne pas utiliser le pouvoir cette nuit.
+  • Le résultat (loup présent / absent) s'affiche dans le panneau.
+  • Perte du pouvoir indiquée si erreur commise.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Même que le Village.
+
+================================================================
+RÔLES SOLO (VICTOIRE INDÉPENDANTE)
+================================================================
+
+──────────────────────────────────────────────────────────────
+SNIPER (SN) — Camp : Solo
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • Uniquement lors du vote de jour (phase Jour).
+
+Ce qu'il fait :
+  • Au début de la partie, une cible secrète lui est attribuée
+    aléatoirement parmi les autres joueurs.
+  • Il gagne SEUL si cette cible est éliminée par le vote du
+    village LE JOUR, pendant qu'il est encore en vie.
+  • Si la cible meurt la nuit ou si le Sniper est éliminé avant,
+    il ne peut plus gagner.
+
+Fonctionnalités dans le jeu :
+  • Le nom de sa cible (et son statut vivant/éliminé) est affiché
+    dans son panneau en permanence.
+  • Vote normalement le jour comme les autres joueurs.
+  • En mode solo IA : le Sniper vote toujours pour sa cible.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Victoire "Sniper" : cible éliminée par vote jour + Sniper vivant.
+
+──────────────────────────────────────────────────────────────
+SIRÈNE (SI) — Camp : Solo
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "SIRÈNE" (après le Renard).
+
+Ce qu'il fait :
+  • Chaque nuit, envoûte un joueur (ou passe).
+  • Les joueurs envoûtés restent dans leur camp et agissent
+    normalement, mais la Sirène gagne si TOUS les joueurs encore
+    en vie (hors elle-même) sont envoûtés.
+
+Fonctionnalités dans le jeu :
+  • Boutons ENVOÛTER (cible sélectionnée) et PASSER.
+  • La liste des joueurs envoûtés est affichée dans le panneau.
+  • Un joueur envoûté affiche l'icône ♪ dans la liste des joueurs.
+  • La Sirène peut envoûter des loups ou des villageois.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Victoire "Sirène" : tous les joueurs encore vivants (hors elle)
+    ont été envoûtés.
+
+──────────────────────────────────────────────────────────────
+PYROMANE (PY) — Camp : Solo
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit, à l'étape "PYROMANE" (en dernier).
+
+Ce qu'il fait :
+  • Chaque nuit, deux choix possibles :
+    1. ASPERGER un joueur d'essence (il est "aspergé" pour toujours
+       sauf s'il meurt avant la mise à feu).
+    2. ENFLAMMER (met le feu et élimine TOUS les joueurs aspergés
+       encore en vie d'un seul coup).
+  • Peut aussi PASSER.
+  • Le Pyromane peut s'asperger lui-même pour mourir avec ses victimes,
+    mais cela annule sa victoire.
+
+Fonctionnalités dans le jeu :
+  • Boutons ASPERGER (cible sélectionnée), ENFLAMMER (si au moins
+    1 aspergé), et PASSER.
+  • La liste des joueurs aspergés est affichée.
+  • Un joueur aspergé affiche l'icône 🔥 dans la liste des joueurs.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Victoire "Pyromane" : le Pyromane est le seul survivant après
+    avoir mis le feu à tous les autres.
+
+================================================================
+RÔLES À CAMP VARIABLE (VILLAGE / LOUPS)
+================================================================
+
+──────────────────────────────────────────────────────────────
+ENFANT SAUVAGE (ES) — Camp : Village / Loups
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • La nuit 1 uniquement, à l'étape "ENFANT" (après Cupidon).
+  • Conversion en loup : n'importe quand, dès que son mentor meurt.
+
+Ce qu'il fait :
+  • La nuit 1, choisit secrètement un joueur comme "mentor".
+  • Tant que son mentor est en vie, il joue comme un Villageois.
+  • Si son mentor est éliminé (nuit ou jour, quelle que soit la
+    cause), l'Enfant sauvage bascule du côté des loups. Il
+    rejoint l'équipe des loups et peut désormais communiquer
+    avec eux la nuit.
+
+Fonctionnalités dans le jeu :
+  • Bouton CHOISIR CE MENTOR activé quand un joueur est sélectionné.
+  • Le nom de son mentor et son statut (vivant/éliminé) s'affichent.
+  • Si le mentor meurt, la conversion est annoncée dans le chat.
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Avant conversion : même que le Village.
+  • Après conversion : même que les Loups.
+
+──────────────────────────────────────────────────────────────
+VILLAGEOIS MAUDIT (VM) — Camp : Village / Loups
+──────────────────────────────────────────────────────────────
+Quand intervient-il ?
+  • Automatiquement, lors de la résolution de nuit (quand les loups
+    l'attaquent pour la première fois).
+
+Ce qu'il fait :
+  • Apparaît comme un Villageois ordinaire.
+  • S'il est désigné par les loups comme victime une nuit, au lieu
+    de mourir il se transforme en Loup-garou. Ce pouvoir ne peut
+    se déclencher qu'une seule fois.
+  • Après conversion, il joue comme un loup (vote avec eux la nuit,
+    voit leurs rôles, chat loup actif).
+
+Fonctionnalités dans le jeu :
+  • Aucune action nocturne active.
+  • La conversion est annoncée dans le chat (tous les joueurs
+    apprennent la malédiction du Villageois Maudit).
+  • Les loups savent s'il a été converti (ils voient son rôle).
+  • Maximum 1 par partie.
+
+Condition de victoire :
+  • Avant conversion : même que le Village.
+  • Après conversion : même que les Loups.
+
+================================================================
+RÉSUMÉ DES CONDITIONS DE VICTOIRE
+================================================================
+
+VILLAGE  : Tous les loups sont éliminés.
+LOUPS    : Le nombre de loups vivants est ≥ au nombre de
+           non-loups vivants.
+AMOUREUX : Les 2 amoureux (Cupidon) sont les 2 derniers
+           survivants, quelle que soit leur appartenance.
+SNIPER   : La cible secrète du Sniper est éliminée par vote
+           de jour pendant que le Sniper est en vie.
+SIRÈNE   : Tous les joueurs encore en vie (hors Sirène) ont
+           été envoûtés.
+PYROMANE : Tous les autres joueurs ont été brûlés (Pyromane
+           seul survivant après ignition).
+
+================================================================
+ICÔNES DANS LA LISTE DES JOUEURS
+================================================================
+
+♥  = joueur amoureux (Cupidon)
+♪  = joueur envoûté (Sirène)
+🔥 = joueur aspergé d'essence (Pyromane)
+
+================================================================
+FIN DE LA DOCUMENTATION
+================================================================
