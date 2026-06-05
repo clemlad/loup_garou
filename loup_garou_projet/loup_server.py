@@ -404,7 +404,8 @@ class WerewolfServer:
             "your_id":                player_id,
             "host_id":                self.host_id,
             "players":                serialize_players_for(player_id, self.players,
-                                                            reveal_all=(self.winner is not None)),
+                                                            reveal_all=(self.winner is not None),
+                                                            hide_night_deaths=(self.phase == "night")),
             "game_started":           self.game_started,
             "winner":                 self.winner,
             "message":                self.message,
@@ -895,24 +896,8 @@ class WerewolfServer:
                                  system=True)
                 self.sniper_target = None
 
-        # Queue les Chasseurs morts
+        # Queue les Chasseurs morts (ils agiront à l'aube, après le reveal)
         self._queue_hunter_deaths(all_dead)
-
-        if self.pending_hunter_queue:
-            # Pause pour que le Chasseur agisse (si connecté)
-            hunter_id = self.pending_hunter_queue[0]
-            if self.players[hunter_id].get("connected"):
-                self.message = (f"{self.players[hunter_id]['name']} (Chasseur) doit "
-                                f"choisir un joueur à emporter !")
-                self.broadcast_snapshots()
-                return
-            else:
-                # Chasseur déconnecté : tire aléatoirement
-                self._auto_hunter_shoot(hunter_id)
-                self.pending_hunter_queue.pop(0)
-                if self.pending_hunter_queue:
-                    self._resolve_night()
-                    return
 
         self.winner = check_winner(self.players)
         if self.winner is not None:
@@ -920,8 +905,8 @@ class WerewolfServer:
             self.message = f"Victoire du camp : {self.winner} !"
             self.broadcast_snapshots()
         else:
-            # Phase aube : tout le monde voit les morts AVANT que le vote du jour commence
-            # Le chasseur aussi attend le matin pour agir
+            # Phase aube : tout le monde voit les morts AVANT que le vote du jour commence.
+            # Le Chasseur agit aussi à l'aube (start_day_from_dawn), jamais pendant la nuit.
             self.phase = "dawn"
             # Construire last_deaths_with_roles pour l'affichage aube
             self.last_deaths_with_roles = [

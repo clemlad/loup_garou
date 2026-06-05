@@ -2081,8 +2081,10 @@ class WerewolfSoloGame:
         :param rect: Rectangle de dessin sur la surface (pygame.Rect).
         :param selected: True si ce joueur est la cible sélectionnée (bool).
         """
-        is_dead = not p["alive"]
         is_me   = (p["id"] == self.player_id)
+        # Pendant la nuit, masquer les morts nocturnes aux autres joueurs jusqu'au reveal
+        _actually_dead = not p["alive"]
+        is_dead = _actually_dead and (is_me or self.phase != "night")
         bg = (14, 10, 26) if is_dead else ((58, 36, 88) if selected else (26, 18, 46))
         pygame.draw.rect(self.screen, bg, rect, border_radius=14)
         bord = MIST_LIGHT if selected else (46, 38, 72)
@@ -2098,6 +2100,9 @@ class WerewolfSoloGame:
                     or (is_wolf_player(self.current_player()) and p_is_wolf_side)
                     or (self.current_player().get("is_lover")
                         and self.current_player().get("lover_id") == p["id"]))
+        # Si mort nocturne masquée, pas de reveal du rôle non plus
+        if _actually_dead and not is_dead:
+            reveal = False
         role_str = (p.get("revealed_role") or p.get("role") or "?") if reveal else "?"
 
         # Couleur du badge : rouge si converti côté loups, sinon couleur normale

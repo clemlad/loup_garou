@@ -427,14 +427,16 @@ def count_alive_by_role(players):
     return counter
 
 
-def serialize_players_for(player_id, players, reveal_all=False):
+def serialize_players_for(player_id, players, reveal_all=False, hide_night_deaths=False):
     """
     Sérialise la liste des joueurs du point de vue de player_id.
-    Inclut les informations sur les amoureux, les envoûtés, les aspergés, etc.
 
     Règles de visibilité :
     - is_charmed : visible uniquement par la Sirène (liste complète) et par le joueur concerné lui-même.
     - is_fueled  : visible uniquement par le Pyromane.
+    - hide_night_deaths : si True (phase nuit), les morts nocturnes sont masqués aux autres joueurs
+      (alive reste True, revealed_role reste None) jusqu'au reveal de l'aube. Seul le joueur
+      lui-même voit son propre état réel.
     """
     data = []
     current_player = players[player_id] if 0 <= player_id < len(players) else None
@@ -462,11 +464,18 @@ def serialize_players_for(player_id, players, reveal_all=False):
             or current_role == "Pyromane"
         )
 
+        # Pendant la nuit, masquer les morts nocturnes aux autres joueurs
+        # (sauf au joueur lui-même et en fin de partie)
+        night_hidden = (hide_night_deaths
+                        and not p["alive"]
+                        and p["id"] != player_id
+                        and not reveal_all)
+
         entry = {
             "id":             p["id"],
             "name":           p["name"],
-            "alive":          p["alive"],
-            "revealed_role":  p.get("revealed_role"),
+            "alive":          True if night_hidden else p["alive"],
+            "revealed_role":  None if night_hidden else p.get("revealed_role"),
             "infected":       False,
             # is_lover visible uniquement : soi-même, son partenaire, Cupidon, fin de partie
             "is_lover":       False,
