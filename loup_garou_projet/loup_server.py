@@ -99,6 +99,12 @@ class WerewolfServer:
         self.fueled_players: list = []
         # Chasseur en attente (queue, FIFO)
         self.pending_hunter_queue: list = []
+        # Historique des exécutions (votes du village) et morts par jour
+        self.execution_history: list = []  # [{jour, nom, role}]
+        self.last_deaths_with_roles: list = []  # [{nom, role}] pour l'aube
+        self.daily_deaths: dict = {}        # {jour: [nom, ...]}
+        # Rôles initiaux (sauvegardés au début de partie)
+        self.initial_roles: dict = {}       # {player_id: role}
 
     def _ensure_slot(self, player_id: int):
         """
@@ -129,7 +135,8 @@ class WerewolfServer:
         except OSError:
             pass
 
-    def append_chat(self, author: str, message: str, system: bool = False, wolf_only: bool = False):
+    def append_chat(self, author: str, message: str, system: bool = False,
+                    wolf_only: bool = False, dead_only: bool = False):
         """
         Ajoute un message au chat et conserve les 80 derniers messages.
 
@@ -137,8 +144,10 @@ class WerewolfServer:
         :param message: Contenu du message, tronqué à 220 caractères (str).
         :param system: True si le message est un message système (bool).
         :param wolf_only: True si le message est visible uniquement par les loups (bool).
+        :param dead_only: True si le message est visible uniquement par les joueurs morts (bool).
         """
-        entry = {"author": author, "message": message[:220], "system": system, "wolf_only": wolf_only}
+        entry = {"author": author, "message": message[:220], "system": system,
+                 "wolf_only": wolf_only, "dead_only": dead_only}
         self.chat_history.append(entry)
         self.chat_history = self.chat_history[-80:]
 
@@ -298,15 +307,29 @@ class WerewolfServer:
         witch_save_blocked = (current_role == "Sorcière"
                               and self.pending_night.get("infected_target") is not None)
 
-        # Chat : la nuit seuls les loups (et infectés) peuvent écrire
-        can_chat = True
-        if self.phase == "night" and self.game_started and player["alive"]:
+        # Chat : logique de permission d'écriture et de visibilité
+        is_dead = not player["alive"]
+        if is_dead:
+            # Les morts peuvent écrire, mais leurs messages sont marqués dead_only
+            can_chat = True
+        elif self.phase == "night" and self.game_started:
+            # La nuit seuls les loups (et infectés) peuvent écrire
             can_chat = is_wolf
+        else:
+            can_chat = True
 
+        # Visibilité du chat :
+        # - Loups : voient tout (y compris wolf_only)
+        # - Morts : voient le chat normal + les messages dead_only
+        # - Vivants : voient uniquement les messages non wolf_only et non dead_only
         if is_wolf:
             visible_chat = list(self.chat_history)
+        elif is_dead:
+            visible_chat = [e for e in self.chat_history
+                            if not e.get("wolf_only")]
         else:
-            visible_chat = [e for e in self.chat_history if not e.get("wolf_only")]
+            visible_chat = [e for e in self.chat_history
+                            if not e.get("wolf_only") and not e.get("dead_only")]
 
         has_voted = (player_id in self.day_votes) if self.phase == "day" else False
 
@@ -416,6 +439,10 @@ class WerewolfServer:
             "lovers_msg":             lovers_msg,
             "wolf_votes_visible":     wolf_votes_visible,
             "day_votes_visible":      day_votes_visible,
+            "execution_history":      list(self.execution_history),
+            "daily_deaths":           {str(k): list(v) for k, v in self.daily_deaths.items()},
+            "initial_roles":          dict(self.initial_roles),
+            "last_deaths_with_roles": list(getattr(self, "last_deaths_with_roles", [])),
         }
 
     # ── Gestion des connexions ────────────────────────────────────────────────
@@ -555,6 +582,10 @@ class WerewolfServer:
             if targets:
                 self.sniper_target = random.choice(targets)["id"]
 
+        # Sauvegarder les rôles initiaux pour l'écran de fin
+        self.initial_roles = {p['id']: p['role'] for p in active}
+        self.execution_history = []
+        self.daily_deaths = {}
         self.game_started = True
         self.winner = None
         self.day_count = 0
@@ -810,6 +841,11 @@ class WerewolfServer:
         all_dead = self._all_deaths_from(deaths)
 
         self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
+        # Enregistrer les morts nocturnes par jour
+        if all_dead:
+            jour = self.day_count  # encore la nuit du jour courrant
+            self.daily_deaths.setdefault(jour, [])
+            self.daily_deaths[jour].extend(self.players[pid]["name"] for pid in all_dead)
 
         # Sniper : si la cible meurt cette nuit (pas par vote), perte de la condition spéciale
         if self.sniper_target is not None and self.sniper_target in all_dead:
@@ -850,10 +886,17 @@ class WerewolfServer:
             # Phase aube : tout le monde voit les morts AVANT que le vote du jour commence
             # Le chasseur aussi attend le matin pour agir
             self.phase = "dawn"
+            # Construire last_deaths_with_roles pour l'affichage aube
+            self.last_deaths_with_roles = [
+                {"nom": self.players[pid]["name"],
+                 "role": self.players[pid].get("revealed_role") or self.players[pid]["role"]}
+                for pid in all_dead
+            ]
             if self.last_deaths:
                 self.message = ("Aube : " + ", ".join(self.last_deaths) +
                                 " éliminé(s) cette nuit. Cliquez sur 'Passer au jour' pour continuer.")
             else:
+                self.last_deaths_with_roles = []
                 self.message = "Aube : personne n'est mort cette nuit. Cliquez sur 'Passer au jour' pour continuer."
             self.broadcast_snapshots()
 
@@ -903,7 +946,7 @@ class WerewolfServer:
             self.last_deaths += [self.players[pid]["name"] for pid in extra2]
             self._check_wild_child_conversion(extra2)
             self.append_chat("Systeme",
-                             f"Le Chasseur a décidé de tuer {self.players[tid]['name']}",
+                             f"{self.players[tid]['name']} est abattu d'une balle !",
                              system=True)
 
     def _proceed_after_hunter(self):
@@ -967,7 +1010,7 @@ class WerewolfServer:
             self.pending_hunter_queue.pop(0)
             # Message officiel selon les règles
             self.append_chat("Systeme",
-                             f"Le Chasseur a décidé de tuer {self.players[target]['name']}",
+                             f"{self.players[target]['name']} est abattu d'une balle !",
                              system=True)
             self._proceed_after_hunter()
             return self.player_snapshot(player_id)
@@ -1337,7 +1380,7 @@ class WerewolfServer:
                     self._apply_death(pid, burned)
             if burned:
                 self.append_chat("Systeme",
-                                 f"Le Pyromane met le feu ! {len(burned)} joueur(s) brûlent !",
+                                 f"Un terrible incendie éclate ! {len(burned)} joueur(s) périssent dans les flammes !",
                                  system=True)
             all_dead = self._all_deaths_from(burned)
             self.last_deaths = [self.players[pid]["name"] for pid in all_dead
@@ -1418,6 +1461,15 @@ class WerewolfServer:
             eliminated = set()
             self._apply_death(chosen, eliminated)
             self.players[chosen]["revealed_role"] = self.players[chosen]["role"]
+            # Enregistrer dans l'historique des exécutions
+            self.execution_history.append({
+                "jour":   self.day_count,
+                "nom":    self.players[chosen]["name"],
+                "role":   self.players[chosen]["role"],
+            })
+            # Enregistrer dans les morts par jour
+            self.daily_deaths.setdefault(self.day_count, [])
+            self.daily_deaths[self.day_count].append(self.players[chosen]["name"])
 
             # Vérification Sniper
             if (self.sniper_target == chosen):
@@ -1477,16 +1529,30 @@ class WerewolfServer:
         player = self.players[player_id] if player_id < len(self.players) else None
         if player is None:
             return self.player_snapshot(player_id)
+        is_dead = not player.get("alive", True)
+        is_wolf = is_wolf_player(player)
+        # La nuit, seuls les loups et les morts peuvent écrire
         if self.phase == "night" and self.game_started:
-            if not is_wolf_player(player):
+            if not is_wolf and not is_dead:
                 return {"type": "error",
                         "message": "Seuls les loups-garous peuvent parler la nuit."}
+        # Un mort ne peut écrire que dans le chat des morts
         clean, flagged = self.moderator.moderate(raw)
         author = player.get("name", f"Joueur {player_id + 1}")
         if flagged:
             clean = "*" * len(raw)
-        wolf_only = (self.phase == "night" and self.game_started and is_wolf_player(player))
-        self.append_chat(author, clean, wolf_only=wolf_only)
+        # wolf_only : uniquement pour les loups vivants la nuit
+        wolf_only = (self.phase == "night" and self.game_started and is_wolf and not is_dead)
+        # dead_only : messages des joueurs morts, invisibles aux vivants
+        dead_only = is_dead
+        entry = {
+            "author":    author,
+            "message":   clean,
+            "system":    False,
+            "wolf_only": wolf_only,
+            "dead_only": dead_only,
+        }
+        self.chat_history.append(entry)
         if flagged:
             self.append_chat("Systeme", f"Message de {author} modéré.", system=True)
         self.broadcast_snapshots()

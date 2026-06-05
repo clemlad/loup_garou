@@ -360,6 +360,12 @@ class WerewolfSoloGame:
         self.selected_target   = None
         self.winner            = None
         self.last_deaths       = []
+        # Historique des exécutions par vote du village
+        self.execution_history: list = []
+        # Rôles initiaux de tous les joueurs
+        self.initial_roles: dict = {p["id"]: p["role"] for p in self.players}
+        # Journal des morts par jour
+        self.daily_deaths: dict  = {}
         self.night_target_name = None
         self.seer_result       = None
         self.witch_heal_used   = False
@@ -1311,7 +1317,7 @@ class WerewolfSoloGame:
                     "round": self.day_count,
                 })
                 self.add_chat("Système",
-                              f"Le Chasseur a décidé de tuer {self.players[tid]['name']}", False)
+                              f"{self.players[tid]['name']} est abattu d'une balle !", False)
             on_done()
 
     # ── Phase de jour ─────────────────────────────────────────────────────────
@@ -1477,6 +1483,17 @@ class WerewolfSoloGame:
             "cause": "vote",
             "round": self.day_count,
         })
+        # Enregistrer dans l'historique des exécutions pour l'écran de fin
+        if not hasattr(self, "execution_history"):
+            self.execution_history = []
+        self.execution_history.append({
+            "jour": self.day_count,
+            "nom":  self.players[chosen]["name"],
+            "role": role_reveal,
+        })
+        if not hasattr(self, "daily_deaths"):
+            self.daily_deaths = {}
+        self.daily_deaths.setdefault(self.day_count, []).append(self.players[chosen]["name"])
 
         # Vérification victoire Sniper
         if chosen == self.sniper_target:
@@ -1552,7 +1569,7 @@ class WerewolfSoloGame:
             self._apply_death(tid, deaths)
             all_dead = self._all_deaths_from(deaths)
             self.add_chat("Système",
-                          f"Le Chasseur a décidé de tuer {self.players[tid]['name']}", False)
+                          f"{self.players[tid]['name']} est abattu d'une balle !", False)
             self.last_deaths += [self.players[pid]["name"] for pid in all_dead]
             self.death_log.append({"name": self.players[tid]["name"],
                                    "role": self.players[tid]["role"],
@@ -1951,17 +1968,25 @@ class WerewolfSoloGame:
             draw_text(self.screen, p["name"], f["xs"], name_col,
                       center=(cx_center, cy + 38))
 
-            extra = ""
-            if p.get("is_lover"):
-                extra = " ♥"
-            elif p.get("maudit_converted"):
-                extra = " ★"
-            elif p.get("wild_child_turned"):
-                extra = " ↗"
-            draw_text(self.screen, role + extra, f["xs"], accent,
+            # États spéciaux (sans révéler qui a effectué l'action)
+            extra_icons = []
+            if p.get("is_lover"):          extra_icons.append("♥")
+            if p.get("maudit_converted"):   extra_icons.append("Devenu Loup")
+            if p.get("wild_child_turned"):  extra_icons.append("Loup (mentor)")
+            if p.get("infected"):           extra_icons.append("Infecté")
+            if p.get("is_charmed"):         extra_icons.append("Envoûté")
+            if p.get("is_fueled"):          extra_icons.append("Aspergé")
+            draw_text(self.screen, role, f["xs"], accent,
                       center=(cx_center, cy + 56))
-            draw_text(self.screen, camp, f["xs"], GREY_DIM,
-                      center=(cx_center, cy + 72))
+            extra_str = " · ".join(extra_icons[:2])
+            if extra_str:
+                draw_text(self.screen, extra_str, f["xs"], (220, 160, 60),
+                          center=(cx_center, cy + 70))
+                draw_text(self.screen, camp, f["xs"], GREY_DIM,
+                          center=(cx_center, cy + 82))
+            else:
+                draw_text(self.screen, camp, f["xs"], GREY_DIM,
+                          center=(cx_center, cy + 72))
 
             if not p["alive"]:
                 dead_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
@@ -1991,6 +2016,21 @@ class WerewolfSoloGame:
             draw_text(self.screen, line, f["xs"], MOON_SILVER,
                       topleft=(narr_rect.x + 12, ny))
             ny += 16
+        # Historique des exécutions par vote
+        exec_hist = getattr(self, "execution_history", [])
+        if exec_hist and ny + 20 < narr_y + narr_h - 6:
+            ny += 4
+            draw_text(self.screen, "Exécutés par le village :", f["xs"], GOLD_WARM,
+                      topleft=(narr_rect.x + 12, ny))
+            ny += 16
+            for entry in exec_hist:
+                if ny + 16 > narr_y + narr_h - 6:
+                    break
+                draw_text(self.screen,
+                          f"  Jour {entry['jour']} : {entry['nom']} ({entry['role']})",
+                          f["xs"], (180, 150, 90),
+                          topleft=(narr_rect.x + 12, ny))
+                ny += 16
 
         btn_w = 260
         btn_rect = (w // 2 - btn_w // 2, h - 72, btn_w, 48)
@@ -2069,9 +2109,11 @@ class WerewolfSoloGame:
 
         badge = pygame.Rect(rect.x + 9, rect.y + 9, 40, 30)
         pygame.draw.rect(self.screen, badge_col, badge, border_radius=10)
-        draw_text(self.screen,
-                  role_str[:2].upper() if role_str != "?" else "?",
-                  f["xs"], WHITE_SOFT, center=badge.center)
+        # Icône emoji du catalogue ou 2 premières lettres si non disponible
+        role_icon_disp = ROLE_CATALOG.get(role_str, {}).get("ui_icon", "") if role_str != "?" else "?"
+        if not role_icon_disp:
+            role_icon_disp = role_str[:2].upper() if role_str != "?" else "?"
+        draw_text(self.screen, role_icon_disp, f["xs"], WHITE_SOFT, center=badge.center)
 
         # Icônes statut (envoûté, aspergé, amoureux)
         icon_x = rect.right - 20
@@ -2163,7 +2205,9 @@ class WerewolfSoloGame:
         role = self.current_role()
         rb   = pygame.Rect(self.right_rect.x + 20, self.right_rect.y + 58, 160, 30)
         pygame.draw.rect(self.screen, _role_badge_col(role), rb, border_radius=14)
-        draw_text(self.screen, role, f["xs"], WHITE_SOFT, center=rb.center)
+        role_icon_solo = ROLE_CATALOG.get(role, {}).get("ui_icon", "") or role[:2].upper()
+        role_display_solo = f"{role_icon_solo}  {role}" if role_icon_solo != role[:2].upper() else role
+        draw_text(self.screen, role_display_solo, f["xs"], WHITE_SOFT, center=rb.center)
         if self.is_animating:
             dots = "." * (int(self.t * 2.5) % 4)
             draw_text(self.screen, f"En cours{dots}", f["xs"], GREY_DIM,

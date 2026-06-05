@@ -249,19 +249,29 @@ class Launcher:
 
     def launch_online_game(self, host: str, shutdown_after: bool = False):
         """
-        Lance le jeu en ligne, restaure la fenêtre après la fin et arrête le serveur si demandé.
+        Lance le jeu en ligne. Si le joueur choisit "Retour au serveur" en fin de partie,
+        une nouvelle connexion est relancée automatiquement vers le même serveur.
+        Arrête le serveur hébergé si shutdown_after est True.
 
         :param host: Adresse IP du serveur à rejoindre (str).
         :param shutdown_after: Si True, arrête le serveur hébergé après la partie (bool).
         """
         sz = self.screen.get_size()
         error_msg = ""
+        return_to_lobby = False
         try:
             game = WerewolfOnlineGame(host, self.valid_name())
             game.run()
+            return_to_lobby = getattr(game, "return_to_lobby", False)
         except Exception as e:
             error_msg = f"Erreur connexion : {e}"
         self.restore_window(sz)
+
+        if return_to_lobby and not error_msg:
+            # Retourner au lobby du même serveur : relancer une connexion
+            self.launch_online_game(host, shutdown_after=shutdown_after)
+            return
+
         if shutdown_after and self.hosted_server is not None:
             try:
                 self.hosted_server.shutdown()
