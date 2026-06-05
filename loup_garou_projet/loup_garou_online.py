@@ -736,11 +736,11 @@ class WerewolfOnlineGame:
             # Icônes d'état (amoureux, envoûté, aspergé)
             icons = []
             if p.get("is_lover"):
-                icons.append(("♥", WOLF_RED))
+                icons.append(("<3", WOLF_RED))
             if p.get("is_charmed"):
-                icons.append(("♪", CYAN_COOL))
+                icons.append(("(e)", CYAN_COOL))
             if p.get("is_fueled"):
-                icons.append(("🔥", (220, 100, 20)))
+                icons.append(("[f]", (220, 100, 20)))
             ix = rect.right - 8
             for icon, ic in reversed(icons):
                 draw_text(self.screen, icon, f["xs"], ic, topright=(ix, rect.y + 6))
@@ -897,7 +897,10 @@ class WerewolfOnlineGame:
                       center=badge.center)
             draw_text(self.screen, rn,         f["xs"], WHITE_SOFT,
                       topleft=(row.x + 56, row.y + 4))
-            draw_text(self.screen, det["camp"], f["xs"], CYAN_COOL,
+            # Camp : tronque si trop long, couleur selon appartenance
+            camp_label = det["camp"][:18]
+            camp_text_col = (180, 120, 220) if "/" in camp_label else CYAN_COOL
+            draw_text(self.screen, camp_label, f["xs"], camp_text_col,
                       topleft=(row.x + 56, row.y + 22))
 
             cnt_r = pygame.Rect(row.right - 128, row.y + 7, 38, 28)

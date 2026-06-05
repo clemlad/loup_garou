@@ -1970,7 +1970,7 @@ class WerewolfSoloGame:
 
             # États spéciaux (sans révéler qui a effectué l'action)
             extra_icons = []
-            if p.get("is_lover"):          extra_icons.append("♥")
+            if p.get("is_lover"):          extra_icons.append("<3")
             if p.get("maudit_converted"):   extra_icons.append("Devenu Loup")
             if p.get("wild_child_turned"):  extra_icons.append("Loup (mentor)")
             if p.get("infected"):           extra_icons.append("Infecté")
@@ -1992,7 +1992,7 @@ class WerewolfSoloGame:
                 dead_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
                 dead_surf.fill((0, 0, 0, 60))
                 self.screen.blit(dead_surf, (cx, cy))
-                draw_text(self.screen, "✗", f["xs"], WOLF_RED,
+                draw_text(self.screen, "[x]", f["xs"], WOLF_RED,
                           center=(cx + card_w - 14, cy + 14))
             elif p["id"] == self.player_id:
                 draw_text(self.screen, "MOI", f["xs"], GOLD_WARM,
@@ -2118,15 +2118,24 @@ class WerewolfSoloGame:
         # Icônes statut (envoûté, aspergé, amoureux)
         icon_x = rect.right - 20
         if p.get("is_charmed"):
-            draw_text(self.screen, "♪", f["xs"], (20, 160, 220),
+            draw_text(self.screen, "(env)", f["xs"], (20, 160, 220),
                       center=(icon_x, rect.y + 10))
-            icon_x -= 16
+            icon_x -= 22
         if p.get("is_fueled"):
-            draw_text(self.screen, "🔥", f["xs"], (220, 80, 20),
+            draw_text(self.screen, "[feu]", f["xs"], (220, 80, 20),
                       center=(icon_x, rect.y + 10))
-            icon_x -= 16
-        if p.get("is_lover"):
-            draw_text(self.screen, "♥", f["xs"], (220, 80, 120),
+            icon_x -= 22
+        # Coeur visible uniquement : soi-meme, son partenaire amoureux, Cupidon
+        me = self.current_player()
+        i_am_cupidon = (me.get("role") == "Cupidon")
+        i_am_lover   = me.get("is_lover", False)
+        can_see_lover_icon = (
+            is_me
+            or i_am_cupidon
+            or (i_am_lover and me.get("lover_id") == p["id"])
+        )
+        if p.get("is_lover") and can_see_lover_icon:
+            draw_text(self.screen, "<3", f["xs"], (220, 80, 120),
                       center=(icon_x, rect.y + 10))
 
         name_col = GREY_DARK if is_dead else (GOLD_WARM if is_me else WHITE_SOFT)

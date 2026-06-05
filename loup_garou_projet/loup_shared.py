@@ -17,7 +17,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.2,
         "description": "Chaque nuit, les loups-garous choisissent ensemble une victime parmi les autres joueurs vivants.",
-        "ui_icon": "🐺",
+        "ui_icon": "LG",
     },
     "Infect Père des Loups": {
         "camp": "Loups",
@@ -26,7 +26,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.5,
         "description": "Loup spécial. Après le vote des loups, il peut infecter la victime désignée UNE seule fois. La victime devient loup tout en conservant ses capacités d'origine.",
-        "ui_icon": "🦠",
+        "ui_icon": "PL",
     },
     "Voyante": {
         "camp": "Village",
@@ -35,7 +35,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.8,
         "description": "Chaque nuit, vous choisissez un joueur pour découvrir son rôle exact.",
-        "ui_icon": "🔮",
+        "ui_icon": "VY",
     },
     "Cupidon": {
         "camp": "Village",
@@ -44,7 +44,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.1,
         "description": "La première nuit uniquement, vous choisissez deux joueurs qui tombent amoureux. Si l'un meurt, l'autre meurt de chagrin. S'ils sont les deux derniers survivants, ils gagnent ensemble.",
-        "ui_icon": "💘",
+        "ui_icon": "<3",
     },
     "Sorcière": {
         "camp": "Village",
@@ -53,7 +53,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.0,
         "description": "Vous avez une potion de soin (sauver la victime des loups) et une potion de mort (empoisonner n'importe quel joueur). Chacune ne peut être utilisée qu'une seule fois.",
-        "ui_icon": "⚗",
+        "ui_icon": "SO",
     },
     "Chasseur": {
         "camp": "Village",
@@ -62,7 +62,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.4,
         "description": "Lorsque vous mourez (nuit ou jour), vous choisissez immédiatement un joueur à éliminer avec vous.",
-        "ui_icon": "🎯",
+        "ui_icon": "SN",
     },
     "Sniper": {
         "camp": "Solo",
@@ -71,7 +71,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.0,
         "description": "Une cible secrète vous est attribuée en début de partie. Vous gagnez seul si cette cible est éliminée par le vote du village pendant que vous êtes encore en vie.",
-        "ui_icon": "🔭",
+        "ui_icon": "AS",
     },
     "Salvateur": {
         "camp": "Village",
@@ -80,7 +80,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.3,
         "description": "Chaque nuit, vous agissez EN PREMIER (avant les loups et le Pyromane) pour protéger un joueur contre toute attaque nocturne. Vous ne pouvez pas protéger la même personne deux nuits consécutives. Vous pouvez vous protéger vous-même.",
-        "ui_icon": "🛡",
+        "ui_icon": "SA",
     },
     "Renard": {
         "camp": "Village",
@@ -89,7 +89,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.2,
         "description": "Chaque nuit, choisissez 3 joueurs : vous saurez s'il y a un loup parmi eux. Si vous vous trompez (aucun loup parmi les 3), vous perdez définitivement ce pouvoir.",
-        "ui_icon": "🦊",
+        "ui_icon": "RN",
     },
     "Enfant sauvage": {
         "camp": "Village / Loups",
@@ -98,7 +98,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 0.8,
         "description": "La première nuit, vous choisissez un mentor parmi les joueurs vivants. Si votre mentor meurt (quelle qu'en soit la cause), vous basculez du côté des loups.",
-        "ui_icon": "🌿",
+        "ui_icon": "EV",
     },
     "Villageois Maudit": {
         "camp": "Village / Loups",
@@ -107,7 +107,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 0.8,
         "description": "Villageois ordinaire au départ. Si les loups vous choisissent comme victime une nuit, au lieu de mourir vous vous transformez en loup-garou. Ce pouvoir ne se déclenche qu'une seule fois.",
-        "ui_icon": "💀",
+        "ui_icon": "VM",
     },
     "Sirène": {
         "camp": "Solo",
@@ -116,7 +116,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.1,
         "description": "Chaque nuit, vous envoûtez un joueur. Vous gagnez seule si tous les joueurs encore en vie (hors vous) sont envoûtés au moment de la vérification de victoire.",
-        "ui_icon": "🌊",
+        "ui_icon": "SI",
     },
     "Pyromane": {
         "camp": "Solo",
@@ -125,7 +125,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.3,
         "description": "Chaque nuit, vous aspergez un joueur d'essence (ou allumez le feu pour tuer tous les aspergés). Vous gagnez seul si vous éliminez ainsi tous les autres joueurs en vie.",
-        "ui_icon": "🔥",
+        "ui_icon": "PY",
     },
     "Villageois": {
         "camp": "Village",
@@ -134,7 +134,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.0,
         "description": "Le villageois n'a pas de pouvoir spécial et vote le jour pour éliminer les loups.",
-        "ui_icon": "🏘",
+        "ui_icon": "VL",
     },
 }
 

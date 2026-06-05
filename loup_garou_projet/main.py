@@ -165,14 +165,14 @@ class Launcher:
         # Modérateur pour filtrer les pseudos grossiers
         _csv = Path(__file__).parent / "moderation_loup_garou_fr_en.csv"
         self.moderator = ChatModerator(str(_csv))
-        self.btn_solo    = Button("MODE SOLO",       BTN_NEUTRAL,  BTN_NEUTRAL_H,  icon="🌙")
+        self.btn_solo    = Button("MODE SOLO",       BTN_NEUTRAL,  BTN_NEUTRAL_H,  icon="o)")
         self.btn_online  = Button("MODE EN LIGNE",   BTN_PRIMARY,  BTN_PRIMARY_H,  icon="🐺")
         self.btn_quit    = Button("QUITTER",          BTN_DANGER,   BTN_DANGER_H,   icon="✕")
         self.btn_create  = Button("CREER UN SALON",   BTN_SUCCESS,  BTN_SUCCESS_H,  icon="⚔")
         self.btn_join    = Button("REJOINDRE",         BTN_PRIMARY,  BTN_PRIMARY_H,  icon="🚪")
         self.btn_back    = Button("RETOUR",            BTN_DANGER,   BTN_DANGER_H)
         self.stepper     = Stepper("Nombre de joueurs (IA inclus)", 6, MIN_PLAYERS, 12)
-        self.btn_launch  = Button("LANCER LA PARTIE", BTN_SUCCESS,  BTN_SUCCESS_H,  icon="▶")
+        self.btn_launch  = Button("LANCER LA PARTIE", BTN_SUCCESS,  BTN_SUCCESS_H,  icon=">")
 
         self.discovery = ServerDiscovery()
         self.discovery.start()
