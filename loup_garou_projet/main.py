@@ -599,7 +599,8 @@ class Launcher:
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.stepper.handle_click(event.pos)
             if self.btn_launch.is_clicked(event.pos):
-                self.launch_solo_game()
+                if self.ensure_name():
+                    self.launch_solo_game()
             elif self.btn_back.is_clicked(event.pos):
                 self.reset_state()
 
