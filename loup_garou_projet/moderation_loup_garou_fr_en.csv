@@ -1,9 +1,9 @@
-category,severity,language,canonical_term,match_type,variants_or_patterns,acronym,recommended_action,notes
+﻿category,severity,language,canonical_term,match_type,variants_or_patterns,acronym,recommended_action,notes
 severe_insult,high,fr,"fils de pute",phrase,"fils2pute|fils de p***|fils d pute","fdp","warn_or_kick","Insulte grave"
 severe_insult,high,fr,"nique ta mère",phrase,"nique ta mere|niq ta mere","ntm","warn_or_kick","Insulte grave"
 severe_insult,high,fr,"ta gueule",phrase,"tgueule|ta guele|ferme ta gueule","tg","warn","Agressif"
 severe_insult,high,fr,"enculé",word,"encule|enculée|enculer","","warn_or_kick","Insulte grave"
-severe_insult,high,fr,"connard",word,"conard|konard|konar","","warn","Insulte grave"
+severe_insult,high,fr,"connard",word,"connar|conard|konard|konar|c0nnard|c0nnar|k0nnard|conn4rd","","warn","Insulte grave - toutes variantes"
 severe_insult,high,fr,"connasse",word,"conasse|konasse","","warn","Insulte grave"
 severe_insult,high,fr,"salope",word,"salop|salo p e","","warn_or_kick","Insulte sexiste"
 severe_insult,high,fr,"pute",word,"puteee|put1","","warn_or_kick","Insulte grave"
@@ -152,4 +152,99 @@ normalization_rule,info,multi,"leet replacement",rule,"0->o|1->i/l|3->e|4->a|5->
 normalization_rule,info,multi,"remove separators",rule,"spaces|dots|underscores|hyphens repeated","","normalize","Ex: f.d.p -> fdp"
 normalization_rule,info,multi,"collapse repeats",rule,"coooonnard -> conard","","normalize","Réduire lettres répétées"
 normalization_rule,info,multi,"strip punctuation",rule,"!!!|***|...|__","","normalize","Nettoyage avant matching"
-normalization_rule,info,multi,"accent folding",rule,"é->e|à->a|ç->c","","normalize","Uniformiser FR" 
+normalization_rule,info,multi,"accent folding",rule,"é->e|à->a|ç->c","","normalize","Uniformiser FR" severe_insult,high,fr,connar,word,conar|connare|k0nnar|konar|conn4r,,warn,Variante de connard
+severe_insult,high,fr,conne,word,kon|konne|c0nne,,warn,Forme féminine insulte
+severe_insult,high,fr,nique,word,nik|niquer|niqer,,warn_or_kick,Verbe grossier
+severe_insult,high,fr,pd,acronym,p.d|p-d|péd|pédé|tarlouze|tapette|goudou,,kick,Homophobie
+severe_insult,high,fr,merde,word,m3rde|merd|mrd|mr.de|mèrde,,warn,Juron courant
+severe_insult,high,fr,putain,word,put1n|putan|p.u.t.a.i.n|pt1|put@in,,warn,Juron courant
+severe_insult,high,fr,bordel,word,bord3l|b0rdel,,warn,Juron courant
+severe_insult,high,fr,fils de pute,phrase,fdp|f.d.p|fils2pute|filsdepute|f1ls de put3|filzdeput,,warn_or_kick,Variantes FDP
+severe_insult,high,fr,ta gueule,phrase,tgueule|ta gu3ule|ta-gueule|tg|t.g,,warn,Variantes TG
+severe_insult,high,fr,nique ta mere,phrase,ntm|n.t.m|niqtamere|niquez votre mere|niquer ta mere,,warn_or_kick,Variantes NTM
+severe_insult,high,fr,va te faire foutre,phrase,vtff|v.t.f.f|va tfaire foutre|vatfaire foutre,,warn_or_kick,Variantes VTFF
+severe_insult,high,fr,encule,word,enculé|enkulé|enkuler|enkulee|enculée|3ncule,,warn_or_kick,Variantes encule
+severe_insult,high,fr,salope,word,sal0pe|salop|saloppe|sal.ope|s4lope,,warn_or_kick,Variantes salope
+severe_insult,high,fr,pute,word,put3|pu.te|put.|put,,warn_or_kick,Variantes pute
+severe_insult,high,fr,batard,word,bâtard|b4tard|bat4rd|baatar|bataar,,warn,Variantes batard
+severe_insult,high,fr,cul,word,c.u.l|kul,,warn,Grossièreté
+severe_insult,high,fr,con,word,k0n|c0n|con,,warn,Insulte courante
+severe_insult,high,fr,chier,word,ch1er|shi3r,,warn,Grossièreté
+severe_insult,high,fr,couille,word,couilles|c0uille|kouille,,warn,Grossièreté
+severe_insult,high,fr,couillon,word,kouillon|couyon|c0uillon,,warn,Insulte
+severe_insult,high,fr,abruti,word,abrutie|4bruti|abr.uti,,warn,Insulte
+severe_insult,high,fr,imbecile,word,imb3cile|imbécile|imbecil,,warn,Insulte
+severe_insult,high,fr,cretin,word,crétin|cr3tin|kr3tin,,warn,Insulte
+severe_insult,high,fr,demeure,word,demeurer|demeuré|d3meuré,,warn,Insulte
+severe_insult,high,fr,attarde,word,attardé|attarder|4ttarde,,warn,Insulte validiste
+severe_insult,high,fr,sous-merde,phrase,sous merde|sousmerde|smerde,,warn_or_kick,Insulte dégradante
+severe_insult,high,fr,mange de la merde,phrase,mange ta merde|mange merde|mnge d merde,,warn_or_kick,Insulte agressive
+severe_insult,high,fr,pousse-toi,phrase,pousse toi|pouss-toi,,warn,Rejet agressif
+severe_insult,high,fr,va mourir,phrase,vas mourir|va-mourir,,kick,Souhait de mort
+severe_insult,high,fr,gros con,phrase,gr0s con|gros k0n|gro con,,warn,Insulte
+severe_insult,high,fr,petit con,phrase,p'tit con|ptit con,,warn,Insulte
+severe_insult,high,fr,sale merde,phrase,sale m3rde|sale mrd,,warn_or_kick,Insulte
+severe_insult,high,fr,espece d'idiot,phrase,espece d'idi0t|espece didiot,,warn,Insulte
+severe_insult,high,fr,ferme la,phrase,ferme-la|ferme la geule|ferme ton bec,,warn,Agressif
+severe_insult,high,fr,pauvre con,phrase,pauv con|pauv'con,,warn,Insulte
+moderate_toxicity,medium,fr,flemmard,word,flem|flemmar|fl3mmard,,warn,Moquerie
+moderate_toxicity,medium,fr,naze,word,na.se|naz3|nazi,,warn,Insulte courante
+moderate_toxicity,medium,fr,nulle,word,nul|nu..le|n.u.l,,warn,Insulte légère
+moderate_toxicity,medium,fr,loser,word,l0ser|looser|los3r,,warn,Insulte jeu
+moderate_toxicity,medium,fr,raté,word,raté|rat3|rate,,warn,Dénigrement
+moderate_toxicity,medium,fr,nerd,word,n3rd|n.e.r.d,,warn,Moquerie
+moderate_toxicity,medium,fr,kikoo,word,kiko|k1k00|kikoo lol,,warn,Moquerie
+moderate_toxicity,medium,fr,inutil,word,inutile|inut1le,,warn,Attaque personnelle
+moderate_toxicity,medium,fr,boulet,word,boul3t|boul.et,,warn,Insulte courante jeu
+moderate_toxicity,medium,fr,zero,word,zéro|z3ro|0zero,,warn,Dénigrement
+moderate_toxicity,medium,fr,has been,phrase,has-been|has b33n,,warn,Moquerie
+moderate_toxicity,medium,fr,sans cervelle,phrase,sans cervel|san cervelle,,warn,Attaque intelligence
+moderate_toxicity,medium,fr,je te déteste,phrase,je te deteste|jte deteste|jte hate,,warn,Agression
+moderate_toxicity,medium,fr,j'en ai marre de toi,phrase,jai marre de toi|j en ai marre,,warn,Agression
+gaming_toxic,high,fr,kick le,phrase,kick ce nul|kick la,kick,warn_or_kick,Incitation au kick
+gaming_toxic,high,fr,arrêtez ce nul,phrase,stop ce nul|stop le boulet,,warn,Harcèlement
+gaming_toxic,high,fr,gg bg,phrase,gg les bgs|gg bg|gg les noobs,,warn,Anti-jeu
+gaming_toxic,medium,fr,leeroy,word,leeeeroy|leroi,,warn,Mauvais comportement jeu
+gaming_toxic,medium,fr,bg la merde,phrase,bg de merde|baguette de merde,,warn,Insulte
+gaming_toxic,medium,fr,nab,word,n4b|na.b,,warn,Insulte jeu
+gaming_toxic,medium,fr,scum,word,sc.um|skum,,warn,Insulte anglophone
+gaming_toxic,high,en,wtf,acronym,w.t.f|w-t-f,,warn,what the fuck
+gaming_toxic,high,en,omfg,acronym,o.m.f.g,,warn,oh my fucking god
+gaming_toxic,high,en,ffs,acronym,f.f.s,,warn,for fuck sake
+gaming_toxic,high,en,fucking,word,f.u.c.k.i.n.g|f*cking|fck|fcking,,warn_or_kick,Grossièreté anglaise
+gaming_toxic,high,en,fuck,word,f.u.c.k|fuk|fck|phuck|f*ck,,warn_or_kick,Grossièreté anglaise
+gaming_toxic,high,en,shit,word,sh.it|sh1t|$hit,,warn,Grossièreté anglaise
+gaming_toxic,high,en,ass,word,a$s|a55,,warn,Grossièreté anglaise
+gaming_toxic,high,en,asshole,word,a$$hole|a55hole|ashole,,warn_or_kick,Insulte anglaise
+gaming_toxic,high,en,hell,word,h3ll,,warn,Contexte jeu
+gaming_toxic,high,en,crap,word,cr4p,,warn,Grossièreté légère
+gaming_toxic,high,en,damn,word,d4mn,,warn,Grossièreté légère
+gaming_toxic,high,en,suck,word,su.ck|suk|s.u.c.k,,warn,Insulte légère
+gaming_toxic,high,en,screw you,phrase,scr3w you|scrw u,,warn,Insulte
+gaming_toxic,high,en,get rekt,phrase,get reck|get wrekt|getrekt|rekt,,warn,Provocation
+gaming_toxic,high,en,ez clap,phrase,ez clap|ezclap|3z clap,,warn,Anti-jeu
+gaming_toxic,high,en,ratio,word,ratio'd|rati0,,warn,Provocation moderne
+gaming_toxic,medium,en,brainless,word,braindead|brain d34d,,warn,Attaque intelligence
+gaming_toxic,medium,en,bot,word,b.o.t|absolute bot,,warn,Insulte jeu
+gaming_toxic,medium,en,reported,word,report|9x rep|mass report,,warn,Harcèlement/signalements
+severe_insult,critical,multi,nigger,word,n.i.g.g.e.r|n1gger|n!gger|nigg3r|n*gger,,kick,Racisme
+severe_insult,critical,multi,nigga,word,n1gga|nigg4|n!gga,,kick,Racisme
+severe_insult,critical,multi,negre,word,nègre|nегр|neger,,kick,Racisme
+threat_violence,critical,fr,je vais te nique,phrase,jvais te niquer|jte nique,,kick,Menace
+threat_violence,critical,fr,tu vas avoir mal,phrase,tu va avoir mal|tvas avoir mal,,kick,Menace physique
+threat_violence,critical,fr,buter,word,but3r|but.er,,kick,Menace de mort
+threat_violence,critical,fr,descendre,word,j te descend|jte descend,,kick,Menace de mort
+threat_violence,critical,fr,casser la gueule,phrase,casse la gueule|j te casse la gueule|casser les dents,,kick,Menace physique
+threat_violence,critical,fr,fracasser,word,frac4sser|fracass3r,,kick,Menace physique
+threat_violence,critical,en,i will find you,phrase,ill find you|i'll find u,,kick,Menace
+threat_violence,critical,en,you are dead,phrase,ur dead|you're dead|ded irl,,kick,Menace
+acronym,high,fr,lmj,acronym,l.m.j,,warn,lèche-moi les jambons
+acronym,high,fr,jrm,acronym,j.r.m,,warn,je reste moi
+acronym,high,fr,bm,acronym,b.m|bm,bm,warn,bad mannered / insulte
+acronym,high,fr,fdpdtm,acronym,fdp dtm,,warn_or_kick,fils de pute de tes morts
+acronym,high,fr,bgf,acronym,b.g.f,,warn,insult
+acronym,high,fr,ptn,acronym,p.t.n|ptn,ptn,warn,putain
+acronym,high,fr,crs,acronym,c.r.s,,warn,crisse (québécois)
+acronym,high,en,bs,acronym,b.s|b-s,bs,warn,bullshit
+acronym,high,en,af,acronym,a.f,,warn,as fuck (contexte)
+acronym,high,en,mfker,acronym,mf|m.f|mfker,mf,warn_or_kick,motherfucker variante

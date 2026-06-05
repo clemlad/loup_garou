@@ -15,7 +15,7 @@ from loup_shared import (
     MIN_PLAYERS, MAX_PLAYERS,
     ROLE_CATALOG, CLASSIC_ROLE_NAMES, SPECIAL_ROLE_NAMES, AVAILABLE_ROLES,
     camp_balance, min_players_for_config, normalize_role_config, role_config_error,
-    is_wolf_role, is_wolf_player,
+    is_wolf_role, is_wolf_player, exclusive_role_conflict,
 )
 from server_discovery import get_local_ip
 from loup_ui_theme import (
@@ -158,6 +158,7 @@ class WerewolfOnlineGame:
         self.t      = 0.0
         self.network = NetworkClient(host, player_name)
         self.running = True
+        self.return_to_lobby = False  # True = retour au lobby serveur, False = quitter
 
         # État de base
         self.state       = "connecting"
@@ -207,6 +208,13 @@ class WerewolfOnlineGame:
         self.wolf_votes_visible: dict = {}   # {nom_votant: nom_cible} — loups seulement
         self.day_votes_visible:  dict = {}   # {nom_votant: nom_cible} — tout le monde
         self.witch_save_blocked       = False  # True si père des loups a infecté cette nuit
+
+        # Historique et journal de jeu
+        self.execution_history: list  = []   # [{jour, nom, role}]
+        self.daily_deaths: dict       = {}   # {jour_str: [noms]}
+        self.initial_roles: dict      = {}   # {player_id: role}
+        self._dawn_shown: set         = set()  # jours dont l'aube a déjà été affichée
+        self.last_deaths_with_roles: list = []  # [{nom, role}] pour l'affichage aube
 
         # Boutons de base
         self.btn_start         = Button("LANCER LA PARTIE",  BTN_SUCCESS, BTN_SUCCESS_H)
@@ -402,6 +410,11 @@ class WerewolfOnlineGame:
                 self.salvateur_last_name   = msg.get("salvateur_last_name")
                 self.wolf_votes_visible    = msg.get("wolf_votes_visible", {})
                 self.day_votes_visible     = msg.get("day_votes_visible", {})
+                self.execution_history     = msg.get("execution_history", self.execution_history)
+                self.daily_deaths          = msg.get("daily_deaths", self.daily_deaths)
+                self.initial_roles         = msg.get("initial_roles", self.initial_roles)
+                self.last_deaths_with_roles = msg.get("last_deaths_with_roles",
+                                                       getattr(self, "last_deaths_with_roles", []))
 
                 # Message amoureux reçu uniquement par les concernés
                 lovers_msg = msg.get("lovers_msg")
@@ -467,6 +480,12 @@ class WerewolfOnlineGame:
         if role_name == "Loup-garou":
             val = max(1, val)
         new[role_name] = val
+        # Vérification d'exclusivité (Enfant sauvage ↔ Villageois Maudit)
+        if delta > 0 and val > 0:
+            conflict_msg = exclusive_role_conflict(role_name, self.role_config)
+            if conflict_msg:
+                self.message = f"⚠ {conflict_msg}"
+                return
         if sum(new.values()) > MAX_PLAYERS:
             self.message = f"Trop de roles (max {MAX_PLAYERS} joueurs)."
             return
@@ -641,12 +660,33 @@ class WerewolfOnlineGame:
         draw_text(self.screen, "Joueurs", f["big"], MOON_SILVER,
                   topleft=(self.left_rect.x + 12, self.left_rect.y + 10), shadow=True)
         alive = sum(1 for p in self.players if p.get("alive"))
-        draw_text(self.screen, f"{alive}/{len(self.players)}",
+        # Compteur vivants / total + indicateur de jour
+        jour_label = ""
+        if self.phase in ("night", "dawn"):
+            jour_label = f" — Nuit {self.day_count}"
+        elif self.phase == "day":
+            jour_label = f" — Jour {self.day_count}"
+        draw_text(self.screen, f"{alive}/{len(self.players)}{jour_label}",
                   f["xs"], GOLD_PALE,
                   topleft=(self.left_rect.x + 12, self.left_rect.y + 48))
+        # Dernières exécutions (historique compact)
+        if self.execution_history and self.phase in ("day", "dawn", "night"):
+            exec_y = self.left_rect.y + 64
+            draw_text(self.screen, "Exécutés :", f["xs"], GREY_DIM,
+                      topleft=(self.left_rect.x + 12, exec_y))
+            for entry in self.execution_history[-3:]:
+                exec_y += 14
+                if exec_y > self.left_rect.y + 100:
+                    break
+                draw_text(self.screen,
+                          f"J{entry['jour']} {entry['nom'][:10]}",
+                          f["xs"], (160, 80, 80),
+                          topleft=(self.left_rect.x + 14, exec_y))
 
         self.player_rects = []
-        y = self.left_rect.y + 72
+        # Décaler y si on affiche l'historique d'exécutions
+        exec_offset = min(3, len(self.execution_history)) * 14 if self.execution_history else 0
+        y = self.left_rect.y + 72 + (exec_offset if self.phase in ("day","dawn","night") else 0)
         my_role = self.current_role() or ""
 
         for p in self.players:
@@ -678,9 +718,11 @@ class WerewolfOnlineGame:
             bc = ROLE_WOLF_CLR if (is_wolf_role(role_str) or p.get("infected")) else MIST_PURPLE
             badge = pygame.Rect(rect.x + 7, rect.y + 9, 36, 28)
             pygame.draw.rect(self.screen, bc, badge, border_radius=8)
-            draw_text(self.screen,
-                      role_str[:2].upper() if role_str not in ("?",) else "?",
-                      f["xs"], WHITE_SOFT, center=badge.center)
+            # Utiliser l'emoji du catalogue si disponible, sinon 2 premières lettres
+            role_icon = ROLE_CATALOG.get(role_str, {}).get("ui_icon", "")
+            if not role_icon or role_str == "?":
+                role_icon = role_str[:2].upper() if role_str not in ("?",) else "?"
+            draw_text(self.screen, role_icon, f["xs"], WHITE_SOFT, center=badge.center)
 
             name_col = GREY_DARK if dead else (GOLD_WARM if is_me else WHITE_SOFT)
             draw_text(self.screen, p["name"], f["xs"], name_col,
@@ -775,6 +817,8 @@ class WerewolfOnlineGame:
     def _villager_count(self) -> int:
         """
         Calcule le nombre de Villageois génériques restants après attribution des rôles spéciaux.
+        Les Villageois sont un rôle de remplissage passif : leur nombre est toujours le résidu
+        (joueurs sans rôle spécial) et ne peut pas être augmenté manuellement.
 
         :return: Nombre de Villageois (int), toujours >= 0.
         """
@@ -844,25 +888,33 @@ class WerewolfOnlineGame:
                              row, 1, border_radius=12)
 
             camp_col = ROLE_CAMP_COLOR.get(det["camp"], MIST_PURPLE)
-            badge = pygame.Rect(row.x + 6, row.y + 7, 40, 28)
+            badge = pygame.Rect(row.x + 6, row.y + 5, 44, 32)
             pygame.draw.rect(self.screen, camp_col, badge, border_radius=10)
-            draw_text(self.screen, det.get("ui_icon", rn[:2]), f["xs"], WHITE_SOFT,
+            # Icône : emoji du catalogue ou 2 premières lettres
+            role_icon = det.get("ui_icon") or rn[:2].upper()
+            # Utiliser la fonte "small" pour les emoji (plus lisible)
+            draw_text(self.screen, role_icon, f["small"], WHITE_SOFT,
                       center=badge.center)
             draw_text(self.screen, rn,         f["xs"], WHITE_SOFT,
-                      topleft=(row.x + 52, row.y + 4))
+                      topleft=(row.x + 56, row.y + 4))
             draw_text(self.screen, det["camp"], f["xs"], CYAN_COOL,
-                      topleft=(row.x + 52, row.y + 22))
+                      topleft=(row.x + 56, row.y + 22))
 
             cnt_r = pygame.Rect(row.right - 128, row.y + 7, 38, 28)
             min_r = pygame.Rect(row.right - 84,  row.y + 7, 30, 28)
             pls_r = pygame.Rect(row.right - 46,  row.y + 7, 30, 28)
             is_host = self.is_host()
             if rn == "Villageois":
-                minus_en = is_host and self._villager_count() > 0
-                plus_en  = is_host and self.max_players < MAX_PLAYERS
+                # Villageois : pas de boutons +/- (valeur calculée automatiquement)
+                minus_en = False
+                plus_en  = False
             else:
                 minus_en = is_host
-                plus_en  = is_host
+                # Désactiver + si un rôle exclusif est déjà actif
+                if is_host and self.role_config.get(rn, 0) == 0:
+                    plus_en = exclusive_role_conflict(rn, self.role_config) is None
+                else:
+                    plus_en = is_host
             for r2, sym, en_btn in [(min_r, "-", minus_en), (pls_r, "+", plus_en)]:
                 col = (BTN_DANGER if sym == "-" else BTN_SUCCESS) if en_btn else GREY_DARK
                 pygame.draw.rect(self.screen, col, r2, border_radius=9)
@@ -873,6 +925,16 @@ class WerewolfOnlineGame:
             pygame.draw.rect(self.screen, BTN_BORDER, cnt_r, 1, border_radius=9)
             display_count = (self._villager_count() if rn == "Villageois"
                              else self.role_config.get(rn, 0))
+            draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
+                      center=cnt_r.center)
+
+            # Badge "OU" pour les rôles exclusifs (Enfant sauvage / Villageois Maudit)
+            from loup_shared import EXCLUSIVE_ROLE_GROUPS
+            for group in EXCLUSIVE_ROLE_GROUPS:
+                if rn in group:
+                    draw_text(self.screen, "⊘ exclusif", f["xs"], (180, 100, 60),
+                              topleft=(row.x + 52, row.y + 22))
+                    break
             draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
                       center=cnt_r.center)
 
@@ -903,8 +965,9 @@ class WerewolfOnlineGame:
         det = ROLE_CATALOG.get(self.selected_role_name)
         if det is None:
             return
+        # Positionner la popup sans chevaucher le footer (- 70 pour le footer de 62px)
         ir = pygame.Rect(self.center_rect.x + 12,
-                         self.center_rect.bottom - 200,
+                         self.center_rect.bottom - 270,
                          self.center_rect.width - 24, 144)
         pygame.draw.rect(self.screen, (36, 26, 64), ir, border_radius=14)
         pygame.draw.rect(self.screen, BTN_BORDER, ir, 1, border_radius=14)
@@ -962,9 +1025,6 @@ class WerewolfOnlineGame:
         pygame.draw.rect(self.screen, (52, 40, 84), self.role_list_rect, 1, border_radius=14)
         self.draw_role_rows(f)
 
-        if self.show_role_info:
-            self.draw_role_info_popup(f)
-
         footer = pygame.Rect(self.center_rect.x + 6, self.center_rect.bottom - 62,
                              self.center_rect.width - 12, 54)
         pygame.draw.rect(self.screen, (22, 16, 42), footer, border_radius=16)
@@ -980,6 +1040,9 @@ class WerewolfOnlineGame:
                     else "Corrige la configuration.")
             draw_text(self.screen, hint, f["xs"], GREY_DIM,
                       center=(footer.centerx, footer.y + 14))
+        # Popup info rôle dessinée EN DERNIER (par-dessus tout) mais JAMAIS sur le footer
+        if self.show_role_info:
+            self.draw_role_info_popup(f)
 
     # ── Panneau jeu ──────────────────────────────────────────────────────────
 
@@ -1118,7 +1181,14 @@ class WerewolfOnlineGame:
 
         # Phase aube : annonce des morts à tous avant le vote du jour
         if self.phase == "dawn":
-            if self.last_deaths:
+            if self.last_deaths_with_roles:
+                line("☽  Cette nuit, les éliminés sont :", (255, 180, 80))
+                for entry in self.last_deaths_with_roles:
+                    nom  = entry.get("nom",  "?")
+                    role = entry.get("role", "?")
+                    line(f"  💀 {nom} était {role}", BLOOD_RED)
+            elif self.last_deaths:
+                # Fallback si last_deaths_with_roles non reçu
                 line("☽  Cette nuit, les morts sont :", (255, 180, 80))
                 for name in self.last_deaths:
                     line(f"  💀 {name}", BLOOD_RED)
@@ -1410,7 +1480,8 @@ class WerewolfOnlineGame:
 
     def _draw_end_screen(self, f: dict, mouse):
         """
-        Dessine l'écran de fin de partie avec le camp vainqueur, la liste des joueurs et le bouton Quitter.
+        Dessine l'écran de fin de partie enrichi : camp vainqueur, rôles initiaux/finaux,
+        états spéciaux (infecté, envoûté, loup-garou transformé), historique des exécutions.
 
         :param f: Dictionnaire des polices (dict).
         :param mouse: Position actuelle de la souris (tuple[int, int]).
@@ -1434,40 +1505,119 @@ class WerewolfOnlineGame:
         self.screen.blit(bg, cr.topleft)
 
         draw_text(self.screen, title, f["big"], tcol,
-                  center=(cr.centerx, cr.y + 42), shadow=True)
+                  center=(cr.centerx, cr.y + 36), shadow=True)
         draw_text(self.screen, self.message, f["xs"], GOLD_PALE,
-                  center=(cr.centerx, cr.y + 82))
+                  center=(cr.centerx, cr.y + 68))
 
-        y = cr.y + 112
-        col_w = cr.width - 28
+        # ── En-têtes colonnes ──────────────────────────────────────────────
+        header_y = cr.y + 88
+        col_w    = cr.width - 28
+        cx       = cr.x + 14
+        col_name  = cx
+        col_init  = cx + int(col_w * 0.28)
+        col_final = cx + int(col_w * 0.54)
+        col_notes = cx + int(col_w * 0.76)
+
+        draw_text(self.screen, "Joueur",        f["xs"], GOLD_WARM,  topleft=(col_name,  header_y))
+        draw_text(self.screen, "Rôle initial",  f["xs"], CYAN_COOL,  topleft=(col_init,  header_y))
+        draw_text(self.screen, "Rôle final",    f["xs"], MOON_SILVER, topleft=(col_final, header_y))
+        draw_text(self.screen, "États",         f["xs"], MIST_LIGHT, topleft=(col_notes, header_y))
+        pygame.draw.line(self.screen, (68, 52, 106),
+                         (cx, header_y + 16), (cx + col_w, header_y + 16))
+
+        y = header_y + 20
+        row_h = 24
+
         for p in self.players:
-            if y + 28 > cr.bottom - 66:
+            if y + row_h > cr.bottom - 60:
                 break
-            role_str = p.get("revealed_role") or p.get("role") or "?"
+            pid      = p["id"]
             alive    = p["alive"]
-            is_wolf  = is_wolf_role(role_str)
-            bg2 = (52, 14, 14) if is_wolf else \
-                  (24, 52, 28) if alive else (30, 26, 48)
-            row = pygame.Rect(cr.x + 14, y, col_w, 26)
-            pygame.draw.rect(self.screen, bg2, row, border_radius=8)
-            name_col   = WHITE_SOFT if alive else GREY_DIM
-            status     = "Survivant" if alive else "Elimine"
-            status_col = GOLD_WARM  if alive else WOLF_RED
-            draw_text(self.screen, p["name"],  f["xs"], name_col,   topleft=(row.x + 8,   row.y + 5))
-            draw_text(self.screen, role_str,    f["xs"], CYAN_COOL,  topleft=(row.x + 130, row.y + 5))
-            draw_text(self.screen, status,      f["xs"], status_col, topleft=(row.x + 260, row.y + 5))
-            y += 30
+            role_fin = p.get("revealed_role") or p.get("role") or "?"
+            role_ini = self.initial_roles.get(pid, role_fin)
+            # Ne pas révéler qui a infecté, tué, etc. – seulement l'état du joueur
+            is_wolf_fin = is_wolf_role(role_fin)
+
+            bg2 = (52, 14, 14, 160) if is_wolf_fin else                   (24, 52, 28, 140) if alive else (30, 26, 48, 130)
+            row = pygame.Rect(cx, y, col_w, row_h - 2)
+            row_surf = pygame.Surface((row.width, row.height), pygame.SRCALPHA)
+            pygame.draw.rect(row_surf, bg2, (0, 0, row.width, row.height), border_radius=7)
+            self.screen.blit(row_surf, row.topleft)
+
+            name_col = WHITE_SOFT if alive else GREY_DIM
+            # Nom
+            draw_text(self.screen, p["name"][:14], f["xs"], name_col, topleft=(col_name + 4, y + 5))
+            # Rôle initial
+            draw_text(self.screen, role_ini[:16],  f["xs"], CYAN_COOL,  topleft=(col_init,  y + 5))
+            # Rôle final (en rouge si différent du rôle initial)
+            fin_col = WOLF_RED if role_fin != role_ini else (180, 210, 180)
+            draw_text(self.screen, role_fin[:16],  f["xs"], fin_col,    topleft=(col_final, y + 5))
+
+            # États spéciaux (sans révéler qui a effectué l'action)
+            notes = []
+            if p.get("infected"):
+                notes.append("Infecté")
+            if p.get("maudit_converted"):
+                notes.append("Loup (malédiction)")
+            if p.get("wild_child_turned"):
+                notes.append("Loup (mentor mort)")
+            if p.get("is_charmed"):
+                notes.append("Envoûté")
+            if p.get("is_fueled"):
+                notes.append("Aspergé")
+            if p.get("is_lover"):
+                notes.append("Amoureux")
+            notes_str = ", ".join(notes)[:20]
+            if notes_str:
+                draw_text(self.screen, notes_str, f["xs"], (220, 180, 80), topleft=(col_notes, y + 5))
+
+            y += row_h
+
+        # ── Historique des exécutions ──────────────────────────────────────
+        if self.execution_history and y + 22 < cr.bottom - 60:
+            y += 4
+            pygame.draw.line(self.screen, (68, 52, 106), (cx, y), (cx + col_w, y))
+            y += 6
+            if y + 16 < cr.bottom - 60:
+                draw_text(self.screen, "Exécutions par le village :", f["xs"], GOLD_WARM, topleft=(cx, y))
+                y += 16
+            for entry in self.execution_history:
+                if y + 16 > cr.bottom - 60:
+                    break
+                jour = entry.get("jour", "?")
+                nom  = entry.get("nom", "?")
+                role = entry.get("role", "?")
+                draw_text(self.screen, f"  Jour {jour} : {nom} ({role})",
+                          f["xs"], (180, 160, 100), topleft=(cx, y))
+                y += 16
 
         self.btn_end.draw(self.screen, f["small"], mouse, enabled=True)
 
     # ── Chat ─────────────────────────────────────────────────────────────────
 
+    def _is_local_player_dead(self) -> bool:
+        """Retourne True si le joueur local est mort."""
+        if self.your_id is None:
+            return False
+        for p in self.players:
+            if p["id"] == self.your_id:
+                return not p.get("alive", True)
+        return False
+
     def draw_chat_panel(self):
         """Dessine le panneau de chat avec historique défilant, barre de scroll et zone de saisie."""
         f = self.fonts()
         draw_glass_panel(self.screen, self.chat_rect, radius=22)
-        draw_text(self.screen, "Chat", f["big"], MOON_SILVER,
+        # Titre avec indicateur mort/vivant
+        chat_title = "Chat des Esprits" if (not self.can_chat and self._is_local_player_dead()) else "Chat"
+        title_col  = MIST_LIGHT if (not self.can_chat and self._is_local_player_dead()) else MOON_SILVER
+        draw_text(self.screen, chat_title, f["big"], title_col,
                   topleft=(self.chat_rect.x + 12, self.chat_rect.y + 10), shadow=True)
+        # Bandeau informatif si le joueur est mort
+        if not self.can_chat and self._is_local_player_dead():
+            draw_text(self.screen, "Seuls les morts vous entendent",
+                      f["xs"], (160, 100, 200),
+                      topleft=(self.chat_rect.x + 12, self.chat_rect.y + 42))
 
         vis_top = self.chat_rect.y + 54
         vis_bot = self.chat_rect.bottom - 66
@@ -1487,15 +1637,30 @@ class WerewolfOnlineGame:
                 break
             system    = entry.get("system")
             wolf_only = entry.get("wolf_only", False)
-            author = "[Systeme]" if system else entry.get("author", "?")
-            acol   = WOLF_RED if system else (WOLF_RED if wolf_only else GOLD_WARM)
-            draw_text(self.screen, author + ":", f["xs"], acol,
+            dead_only = entry.get("dead_only", False)
+            author = "[Système]" if system else entry.get("author", "?")
+            # Couleur de l'auteur selon le type de message
+            if system:
+                acol = WOLF_RED
+            elif wolf_only:
+                acol = WOLF_RED
+            elif dead_only:
+                acol = (140, 100, 180)  # violet pâle = chat des esprits
+            else:
+                acol = GOLD_WARM
+            prefix = "☽ " if dead_only else ""  # icône lune pour les morts
+            draw_text(self.screen, prefix + author + ":", f["xs"], acol,
                       topleft=(self.chat_rect.x + 12, y))
             msg_txt = entry.get("message", "")
             max_c = max(10, (self.chat_rect.width - 24) // 8)
             if len(msg_txt) > max_c:
                 msg_txt = msg_txt[:max_c - 2] + ".."
-            msg_col = (200, 140, 140) if wolf_only else WHITE_SOFT
+            if wolf_only:
+                msg_col = (200, 140, 140)
+            elif dead_only:
+                msg_col = (180, 150, 210)  # lilas = chat des esprits
+            else:
+                msg_col = WHITE_SOFT
             draw_text(self.screen, msg_txt, f["xs"], msg_col,
                       topleft=(self.chat_rect.x + 18, y + 18))
             y += line_h
@@ -1662,6 +1827,11 @@ class WerewolfOnlineGame:
             return
 
         if self.phase == "lobby":
+            # ── Bouton "Lancer la partie" : priorité maximale, jamais bloqué par la popup ──
+            if self.btn_start.is_clicked(event.pos):
+                self.show_role_info = False
+                self.send_action()
+                return
             if self.count_left_rect.collidepoint(event.pos):
                 self._send_max_players_update(-1)
                 return
@@ -1683,11 +1853,10 @@ class WerewolfOnlineGame:
                     self.selected_role_name = rn
                     self.show_role_info = True
                     return
-            if self.btn_start.is_clicked(event.pos):
-                self.send_action()
             return
 
         if self.phase == "end" and self.btn_end.is_clicked(event.pos):
+            self.return_to_lobby = True
             self.running = False
             return
 

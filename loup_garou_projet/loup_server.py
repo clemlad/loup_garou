@@ -99,6 +99,12 @@ class WerewolfServer:
         self.fueled_players: list = []
         # Chasseur en attente (queue, FIFO)
         self.pending_hunter_queue: list = []
+        # Historique des exécutions (votes du village) et morts par jour
+        self.execution_history: list = []  # [{jour, nom, role}]
+        self.last_deaths_with_roles: list = []  # [{nom, role}] pour l'aube
+        self.daily_deaths: dict = {}        # {jour: [nom, ...]}
+        # Rôles initiaux (sauvegardés au début de partie)
+        self.initial_roles: dict = {}       # {player_id: role}
 
     def _ensure_slot(self, player_id: int):
         """
@@ -129,7 +135,8 @@ class WerewolfServer:
         except OSError:
             pass
 
-    def append_chat(self, author: str, message: str, system: bool = False, wolf_only: bool = False):
+    def append_chat(self, author: str, message: str, system: bool = False,
+                    wolf_only: bool = False, dead_only: bool = False):
         """
         Ajoute un message au chat et conserve les 80 derniers messages.
 
@@ -137,8 +144,10 @@ class WerewolfServer:
         :param message: Contenu du message, tronqué à 220 caractères (str).
         :param system: True si le message est un message système (bool).
         :param wolf_only: True si le message est visible uniquement par les loups (bool).
+        :param dead_only: True si le message est visible uniquement par les joueurs morts (bool).
         """
-        entry = {"author": author, "message": message[:220], "system": system, "wolf_only": wolf_only}
+        entry = {"author": author, "message": message[:220], "system": system,
+                 "wolf_only": wolf_only, "dead_only": dead_only}
         self.chat_history.append(entry)
         self.chat_history = self.chat_history[-80:]
 
@@ -298,15 +307,29 @@ class WerewolfServer:
         witch_save_blocked = (current_role == "Sorcière"
                               and self.pending_night.get("infected_target") is not None)
 
-        # Chat : la nuit seuls les loups (et infectés) peuvent écrire
-        can_chat = True
-        if self.phase == "night" and self.game_started and player["alive"]:
+        # Chat : logique de permission d'écriture et de visibilité
+        is_dead = not player["alive"]
+        if is_dead:
+            # Les morts peuvent écrire, mais leurs messages sont marqués dead_only
+            can_chat = True
+        elif self.phase == "night" and self.game_started:
+            # La nuit seuls les loups (et infectés) peuvent écrire
             can_chat = is_wolf
+        else:
+            can_chat = True
 
+        # Visibilité du chat :
+        # - Loups : voient tout (y compris wolf_only)
+        # - Morts : voient le chat normal + les messages dead_only
+        # - Vivants : voient uniquement les messages non wolf_only et non dead_only
         if is_wolf:
             visible_chat = list(self.chat_history)
+        elif is_dead:
+            visible_chat = [e for e in self.chat_history
+                            if not e.get("wolf_only")]
         else:
-            visible_chat = [e for e in self.chat_history if not e.get("wolf_only")]
+            visible_chat = [e for e in self.chat_history
+                            if not e.get("wolf_only") and not e.get("dead_only")]
 
         has_voted = (player_id in self.day_votes) if self.phase == "day" else False
 
@@ -354,7 +377,21 @@ class WerewolfServer:
         fueled_list  = [self.players[i]["name"] for i in self.fueled_players
                         if i < len(self.players)]
 
-        salvateur_last_name = None
+        # Sirène : seule elle peut voir la liste complète des envoûtés.
+        # Un joueur envoûté sait uniquement qu'il l'est lui-même, pas qui sont les autres.
+        if current_role == "Sirène":
+            charmed_list_visible = charmed_list  # La Sirène voit tout
+        elif player_id in self.charmed_players:
+            charmed_list_visible = ["(vous êtes envoûté)"]  # Sait seulement son propre état
+        else:
+            charmed_list_visible = []  # Les autres ne savent rien
+
+        # Pyromane : seul lui voit la liste des aspergés
+        if current_role == "Pyromane":
+            fueled_list_visible = fueled_list
+        else:
+            fueled_list_visible = []  # Les autres ne savent pas qui est aspergé
+        salvateur_last_name = None  # Initialisé à None par défaut
         if current_role == "Salvateur" and self.salvateur_last_protected is not None:
             if self.salvateur_last_protected < len(self.players):
                 salvateur_last_name = self.players[self.salvateur_last_protected]["name"]
@@ -397,12 +434,16 @@ class WerewolfServer:
             "fox_power_active":       self.fox_power_active,
             "lover_partner_name":     lover_partner_name,
             "mentor_name":            mentor_name,
-            "charmed_list":           charmed_list,
-            "fueled_list":            fueled_list,
+            "charmed_list":           charmed_list_visible,
+            "fueled_list":            fueled_list_visible,
             "salvateur_last_name":    salvateur_last_name,
             "lovers_msg":             lovers_msg,
             "wolf_votes_visible":     wolf_votes_visible,
             "day_votes_visible":      day_votes_visible,
+            "execution_history":      list(self.execution_history),
+            "daily_deaths":           {str(k): list(v) for k, v in self.daily_deaths.items()},
+            "initial_roles":          dict(self.initial_roles),
+            "last_deaths_with_roles": list(getattr(self, "last_deaths_with_roles", [])),
         }
 
     # ── Gestion des connexions ────────────────────────────────────────────────
@@ -542,6 +583,10 @@ class WerewolfServer:
             if targets:
                 self.sniper_target = random.choice(targets)["id"]
 
+        # Sauvegarder les rôles initiaux pour l'écran de fin
+        self.initial_roles = {p['id']: p['role'] for p in active}
+        self.execution_history = []
+        self.daily_deaths = {}
         self.game_started = True
         self.winner = None
         self.day_count = 0
@@ -674,15 +719,29 @@ class WerewolfServer:
     def resolve_wolves_if_ready(self) -> bool:
         """
         Calcule la cible des loups si tous les loups ont voté.
+        En cas d'égalité stricte, aucune victime n'est désignée (personne ne meurt).
 
-        :return: True si la cible est déterminée ou s'il n'y a aucun loup (bool).
+        :return: True si le vote est résolu (cible trouvée, égalité, ou aucun loup) (bool).
         """
         wolves = [p for p in self.players
                   if p.get("connected") and p["alive"] and is_wolf_player(p)]
-        if wolves and len(self.wolf_votes) == len(wolves):
+        if not wolves:
+            return True
+        if len(self.wolf_votes) == len(wolves):
             counts = Counter(self.wolf_votes.values())
-            self.pending_wolf_target = max(counts.items(), key=lambda x: (x[1], -x[0]))[0]
-        return self.pending_wolf_target is not None or not wolves
+            max_votes = max(counts.values())
+            leaders = [pid for pid, cnt in counts.items() if cnt == max_votes]
+            if len(leaders) == 1:
+                # Majorité claire : une seule victime désignée
+                self.pending_wolf_target = leaders[0]
+            else:
+                # Égalité : personne ne meurt cette nuit
+                self.pending_wolf_target = None
+                self.append_chat("Systeme",
+                                 "Égalité dans les votes des loups : personne n'est attaqué cette nuit.",
+                                 system=True, wolf_only=True)
+            return True
+        return False
 
     def resolve_night_if_ready(self):
         """Déclenche la résolution de nuit uniquement si toutes les étapes de nuit sont terminées."""
@@ -783,6 +842,22 @@ class WerewolfServer:
         all_dead = self._all_deaths_from(deaths)
 
         self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
+        # Enregistrer les morts nocturnes par jour
+        if all_dead:
+            jour = self.day_count  # encore la nuit du jour courrant
+            self.daily_deaths.setdefault(jour, [])
+            self.daily_deaths[jour].extend(self.players[pid]["name"] for pid in all_dead)
+
+        # Sniper : si la cible meurt cette nuit (pas par vote), perte de la condition spéciale
+        if self.sniper_target is not None and self.sniper_target in all_dead:
+            sniper = next((p for p in self.players if p["alive"] and p["role"] == "Sniper"), None)
+            if sniper:
+                tgt_name = self.players[self.sniper_target]["name"]
+                self.append_chat("Systeme",
+                                 f"La cible du Sniper ({tgt_name}) est morte cette nuit ! "
+                                 f"Le Sniper perd sa victoire spéciale et continue comme Villageois.",
+                                 system=True)
+                self.sniper_target = None
 
         # Queue les Chasseurs morts
         self._queue_hunter_deaths(all_dead)
@@ -812,10 +887,17 @@ class WerewolfServer:
             # Phase aube : tout le monde voit les morts AVANT que le vote du jour commence
             # Le chasseur aussi attend le matin pour agir
             self.phase = "dawn"
+            # Construire last_deaths_with_roles pour l'affichage aube
+            self.last_deaths_with_roles = [
+                {"nom": self.players[pid]["name"],
+                 "role": self.players[pid].get("revealed_role") or self.players[pid]["role"]}
+                for pid in all_dead
+            ]
             if self.last_deaths:
                 self.message = ("Aube : " + ", ".join(self.last_deaths) +
                                 " éliminé(s) cette nuit. Cliquez sur 'Passer au jour' pour continuer.")
             else:
+                self.last_deaths_with_roles = []
                 self.message = "Aube : personne n'est mort cette nuit. Cliquez sur 'Passer au jour' pour continuer."
             self.broadcast_snapshots()
 
@@ -854,7 +936,7 @@ class WerewolfServer:
         return self.player_snapshot(player_id)
 
     def _auto_hunter_shoot(self, hunter_id: int):
-        """Le Chasseur déconnecté tire aléatoirement."""
+        """Le Chasseur déconnecté tire aléatoirement et annonce sa cible."""
         targets = [p["id"] for p in self.players
                    if p["alive"] and p["id"] != hunter_id]
         if targets:
@@ -864,6 +946,9 @@ class WerewolfServer:
             extra2 = self._all_deaths_from(extra)
             self.last_deaths += [self.players[pid]["name"] for pid in extra2]
             self._check_wild_child_conversion(extra2)
+            self.append_chat("Systeme",
+                             f"{self.players[tid]['name']} est abattu d'une balle !",
+                             system=True)
 
     def _proceed_after_hunter(self):
         """Reprend après que le Chasseur ait agi."""
@@ -924,9 +1009,9 @@ class WerewolfServer:
             self.last_deaths += [self.players[pid]["name"] for pid in extra2]
             self._queue_hunter_deaths(extra2 - {player_id})
             self.pending_hunter_queue.pop(0)
+            # Message officiel selon les règles
             self.append_chat("Systeme",
-                             f"{player['name']} (Chasseur) emporte "
-                             f"{self.players[target]['name']} dans la mort !",
+                             f"{self.players[target]['name']} est abattu d'une balle !",
                              system=True)
             self._proceed_after_hunter()
             return self.player_snapshot(player_id)
@@ -1003,11 +1088,23 @@ class WerewolfServer:
             if is_wolf_player(self.players[target]):
                 return {"type": "error", "message": "Vous ne pouvez pas viser un loup."}
             self.wolf_votes[player_id] = target
+            # Diffuser immédiatement pour que les autres loups voient le vote
+            self.broadcast_snapshots()
             wolves = [p for p in self.players
                       if p.get("connected") and p["alive"] and is_wolf_player(p)]
             if len(self.wolf_votes) == len(wolves):
+                # Tous les loups ont voté : calcul avec gestion d'égalité
                 counts = Counter(self.wolf_votes.values())
-                self.pending_wolf_target = max(counts.items(), key=lambda x: (x[1], -x[0]))[0]
+                max_votes = max(counts.values())
+                leaders = [pid for pid, cnt in counts.items() if cnt == max_votes]
+                if len(leaders) == 1:
+                    self.pending_wolf_target = leaders[0]
+                else:
+                    # Égalité : personne ne meurt
+                    self.pending_wolf_target = None
+                    self.append_chat("Systeme",
+                                     "Égalité dans les votes des loups : personne n'est attaqué cette nuit.",
+                                     system=True, wolf_only=True)
                 self._next_night_step()
                 self._advance_if_no_role()
                 if self.night_step == "done":
@@ -1284,7 +1381,7 @@ class WerewolfServer:
                     self._apply_death(pid, burned)
             if burned:
                 self.append_chat("Systeme",
-                                 f"Le Pyromane met le feu ! {len(burned)} joueur(s) brûlent !",
+                                 f"Un terrible incendie éclate ! {len(burned)} joueur(s) périssent dans les flammes !",
                                  system=True)
             all_dead = self._all_deaths_from(burned)
             self.last_deaths = [self.players[pid]["name"] for pid in all_dead
@@ -1341,10 +1438,39 @@ class WerewolfServer:
         alive_voters = [p for p in self.players if p.get("connected") and p["alive"]]
         if len(self.day_votes) == len(alive_voters):
             counts = Counter(self.day_votes.values())
-            chosen, _ = max(counts.items(), key=lambda x: (x[1], -x[0]))
+            max_votes = max(counts.values())
+            leaders = [pid for pid, cnt in counts.items() if cnt == max_votes]
+
+            if len(leaders) > 1:
+                # Égalité au vote du village : personne n'est éliminé
+                self.last_deaths = []
+                self.append_chat("Systeme",
+                                 "Égalité au vote du village : personne n'est éliminé aujourd'hui.",
+                                 system=True)
+                self.winner = check_winner(self.players)
+                if self.winner is not None:
+                    self.phase   = "end"
+                    self.message = f"Égalité. Victoire : {self.winner} !"
+                else:
+                    self.message = "Égalité ! Personne n'est éliminé. La nuit tombe..."
+                    self.start_night()
+                    return self.player_snapshot(player_id)
+                self.broadcast_snapshots()
+                return self.player_snapshot(player_id)
+
+            chosen = leaders[0]
             eliminated = set()
             self._apply_death(chosen, eliminated)
             self.players[chosen]["revealed_role"] = self.players[chosen]["role"]
+            # Enregistrer dans l'historique des exécutions
+            self.execution_history.append({
+                "jour":   self.day_count,
+                "nom":    self.players[chosen]["name"],
+                "role":   self.players[chosen]["role"],
+            })
+            # Enregistrer dans les morts par jour
+            self.daily_deaths.setdefault(self.day_count, [])
+            self.daily_deaths[self.day_count].append(self.players[chosen]["name"])
 
             # Vérification Sniper
             if (self.sniper_target == chosen):
@@ -1363,14 +1489,14 @@ class WerewolfServer:
             all_dead = self._all_deaths_from(eliminated)
             self.last_deaths = [self.players[pid]["name"] for pid in all_dead]
 
-            # Chasseur éliminé par vote
+            # Chasseur éliminé par vote : agit APRÈS l'annonce de mort (phase hunter_day)
             self._queue_hunter_deaths(all_dead)
             if self.pending_hunter_queue:
                 hunter_id = self.pending_hunter_queue[0]
                 if self.players[hunter_id].get("connected"):
                     self.phase = "hunter_day"
                     self.message = (f"{self.players[chosen]['name']} éliminé. "
-                                    f"{self.players[hunter_id]['name']} (Chasseur) doit choisir sa cible !")
+                                    f"Le Chasseur {self.players[hunter_id]['name']} a décidé de tirer !")
                     self.broadcast_snapshots()
                     return self.player_snapshot(player_id)
                 else:
@@ -1404,16 +1530,30 @@ class WerewolfServer:
         player = self.players[player_id] if player_id < len(self.players) else None
         if player is None:
             return self.player_snapshot(player_id)
+        is_dead = not player.get("alive", True)
+        is_wolf = is_wolf_player(player)
+        # La nuit, seuls les loups et les morts peuvent écrire
         if self.phase == "night" and self.game_started:
-            if not is_wolf_player(player):
+            if not is_wolf and not is_dead:
                 return {"type": "error",
                         "message": "Seuls les loups-garous peuvent parler la nuit."}
+        # Un mort ne peut écrire que dans le chat des morts
         clean, flagged = self.moderator.moderate(raw)
         author = player.get("name", f"Joueur {player_id + 1}")
         if flagged:
             clean = "*" * len(raw)
-        wolf_only = (self.phase == "night" and self.game_started and is_wolf_player(player))
-        self.append_chat(author, clean, wolf_only=wolf_only)
+        # wolf_only : uniquement pour les loups vivants la nuit
+        wolf_only = (self.phase == "night" and self.game_started and is_wolf and not is_dead)
+        # dead_only : messages des joueurs morts, invisibles aux vivants
+        dead_only = is_dead
+        entry = {
+            "author":    author,
+            "message":   clean,
+            "system":    False,
+            "wolf_only": wolf_only,
+            "dead_only": dead_only,
+        }
+        self.chat_history.append(entry)
         if flagged:
             self.append_chat("Systeme", f"Message de {author} modéré.", system=True)
         self.broadcast_snapshots()

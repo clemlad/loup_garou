@@ -4,6 +4,57 @@ main.py – Lanceur principal : menu de sélection de mode et pont vers les sous
 Les sous-jeux (solo, online) appellent pygame.display.quit() mais PAS pygame.quit()
 pour que le Launcher puisse recréer la fenêtre proprement après leur fermeture.
 """
+
+# ── Vérification et installation automatique des dépendances ─────────────────
+import subprocess
+import sys
+import importlib
+from pathlib import Path
+
+def _check_and_install_dependencies():
+    """
+    Lit requirements.txt (à côté de ce fichier), vérifie chaque dépendance
+    et installe automatiquement celles qui sont manquantes via pip.
+    """
+    req_file = Path(__file__).parent / "requirements.txt"
+    if not req_file.exists():
+        return  # Pas de requirements.txt → on continue sans vérifier
+
+    # Mapping nom-package (pip) → nom-module (import)
+    IMPORT_MAP = {
+        "pygame": "pygame",
+    }
+
+    missing = []
+    with req_file.open("r", encoding="utf-8") as fh:
+        for raw_line in fh:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Extraire le nom du package sans la contrainte de version (ex. "pygame>=2.5.0" → "pygame")
+            pkg_name = line.split(">=")[0].split("<=")[0].split("==")[0].split("!=")[0].strip()
+            module_name = IMPORT_MAP.get(pkg_name.lower(), pkg_name.lower().replace("-", "_"))
+            try:
+                importlib.import_module(module_name)
+            except ImportError:
+                missing.append(pkg_name)
+
+    if missing:
+        print(f"[Loup-Garou] Dépendances manquantes : {', '.join(missing)}")
+        print("[Loup-Garou] Installation en cours…")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "--quiet"] + missing
+            )
+            print("[Loup-Garou] Installation terminée ✔")
+        except subprocess.CalledProcessError as err:
+            print(f"[Loup-Garou] ⚠ Impossible d'installer les dépendances : {err}")
+            print(f"[Loup-Garou]   Lance manuellement : pip install {' '.join(missing)}")
+            sys.exit(1)
+
+_check_and_install_dependencies()
+# ─────────────────────────────────────────────────────────────────────────────
+
 import threading
 import time
 import math
@@ -13,6 +64,7 @@ import pygame
 
 from loup_garou_online import WerewolfOnlineGame
 from loup_garou_solo import WerewolfSoloGame
+from chat_moderation import ChatModerator
 from loup_server import WerewolfServer
 from loup_shared import MIN_PLAYERS, MAX_PLAYERS
 from server_discovery import ServerDiscovery
@@ -110,6 +162,9 @@ class Launcher:
         self.particles = ParticleSystem(BASE_W, BASE_H, 45)
 
         self.input_name = InputBox(placeholder="Entre ton pseudonyme…", max_len=20)
+        # Modérateur pour filtrer les pseudos grossiers
+        _csv = Path(__file__).parent / "moderation_loup_garou_fr_en.csv"
+        self.moderator = ChatModerator(str(_csv))
         self.btn_solo    = Button("MODE SOLO",       BTN_NEUTRAL,  BTN_NEUTRAL_H,  icon="🌙")
         self.btn_online  = Button("MODE EN LIGNE",   BTN_PRIMARY,  BTN_PRIMARY_H,  icon="🐺")
         self.btn_quit    = Button("QUITTER",          BTN_DANGER,   BTN_DANGER_H,   icon="✕")
@@ -152,12 +207,19 @@ class Launcher:
 
     def ensure_name(self) -> bool:
         """
-        Vérifie qu'un pseudonyme a été saisi ; affiche un message d'erreur si ce n'est pas le cas.
+        Vérifie qu'un pseudonyme a été saisi et qu'il ne contient pas de termes grossiers.
+        Affiche un message d'erreur approprié si le pseudonyme est invalide.
 
         :return: True si le pseudonyme est valide (bool).
         """
-        if not self.valid_name():
+        name = self.valid_name()
+        if not name:
             self.message = "⚠  Choisis un pseudonyme avant de continuer."
+            return False
+        # Contrôle du pseudo contre la liste de termes grossiers
+        _, flagged = self.moderator.moderate(name)
+        if flagged:
+            self.message = "⚠  Ce pseudonyme contient des termes inappropriés."
             return False
         return True
 
@@ -187,19 +249,29 @@ class Launcher:
 
     def launch_online_game(self, host: str, shutdown_after: bool = False):
         """
-        Lance le jeu en ligne, restaure la fenêtre après la fin et arrête le serveur si demandé.
+        Lance le jeu en ligne. Si le joueur choisit "Retour au serveur" en fin de partie,
+        une nouvelle connexion est relancée automatiquement vers le même serveur.
+        Arrête le serveur hébergé si shutdown_after est True.
 
         :param host: Adresse IP du serveur à rejoindre (str).
         :param shutdown_after: Si True, arrête le serveur hébergé après la partie (bool).
         """
         sz = self.screen.get_size()
         error_msg = ""
+        return_to_lobby = False
         try:
             game = WerewolfOnlineGame(host, self.valid_name())
             game.run()
+            return_to_lobby = getattr(game, "return_to_lobby", False)
         except Exception as e:
             error_msg = f"Erreur connexion : {e}"
         self.restore_window(sz)
+
+        if return_to_lobby and not error_msg:
+            # Retourner au lobby du même serveur : relancer une connexion
+            self.launch_online_game(host, shutdown_after=shutdown_after)
+            return
+
         if shutdown_after and self.hosted_server is not None:
             try:
                 self.hosted_server.shutdown()

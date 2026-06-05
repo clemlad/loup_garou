@@ -17,7 +17,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.2,
         "description": "Chaque nuit, les loups-garous choisissent ensemble une victime parmi les autres joueurs vivants.",
-        "ui_icon": "LG",
+        "ui_icon": "🐺",
     },
     "Infect Père des Loups": {
         "camp": "Loups",
@@ -26,7 +26,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.5,
         "description": "Loup spécial. Après le vote des loups, il peut infecter la victime désignée UNE seule fois. La victime devient loup tout en conservant ses capacités d'origine.",
-        "ui_icon": "IP",
+        "ui_icon": "🦠",
     },
     "Voyante": {
         "camp": "Village",
@@ -35,7 +35,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.8,
         "description": "Chaque nuit, vous choisissez un joueur pour découvrir son rôle exact.",
-        "ui_icon": "VO",
+        "ui_icon": "🔮",
     },
     "Cupidon": {
         "camp": "Village",
@@ -44,7 +44,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.1,
         "description": "La première nuit uniquement, vous choisissez deux joueurs qui tombent amoureux. Si l'un meurt, l'autre meurt de chagrin. S'ils sont les deux derniers survivants, ils gagnent ensemble.",
-        "ui_icon": "CU",
+        "ui_icon": "💘",
     },
     "Sorcière": {
         "camp": "Village",
@@ -53,7 +53,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 2.0,
         "description": "Vous avez une potion de soin (sauver la victime des loups) et une potion de mort (empoisonner n'importe quel joueur). Chacune ne peut être utilisée qu'une seule fois.",
-        "ui_icon": "SO",
+        "ui_icon": "⚗",
     },
     "Chasseur": {
         "camp": "Village",
@@ -62,7 +62,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.4,
         "description": "Lorsque vous mourez (nuit ou jour), vous choisissez immédiatement un joueur à éliminer avec vous.",
-        "ui_icon": "CH",
+        "ui_icon": "🎯",
     },
     "Sniper": {
         "camp": "Solo",
@@ -71,7 +71,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.0,
         "description": "Une cible secrète vous est attribuée en début de partie. Vous gagnez seul si cette cible est éliminée par le vote du village pendant que vous êtes encore en vie.",
-        "ui_icon": "SN",
+        "ui_icon": "🔭",
     },
     "Salvateur": {
         "camp": "Village",
@@ -79,8 +79,8 @@ ROLE_CATALOG = {
         "max": 1,
         "night_action": True,
         "weight": 1.3,
-        "description": "Chaque nuit, vous protégez un joueur de l'attaque des loups. Vous ne pouvez pas protéger la même personne deux nuits consécutives.",
-        "ui_icon": "SA",
+        "description": "Chaque nuit, vous agissez EN PREMIER (avant les loups et le Pyromane) pour protéger un joueur contre toute attaque nocturne. Vous ne pouvez pas protéger la même personne deux nuits consécutives. Vous pouvez vous protéger vous-même.",
+        "ui_icon": "🛡",
     },
     "Renard": {
         "camp": "Village",
@@ -89,7 +89,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.2,
         "description": "Chaque nuit, choisissez 3 joueurs : vous saurez s'il y a un loup parmi eux. Si vous vous trompez (aucun loup parmi les 3), vous perdez définitivement ce pouvoir.",
-        "ui_icon": "RE",
+        "ui_icon": "🦊",
     },
     "Enfant sauvage": {
         "camp": "Village / Loups",
@@ -98,7 +98,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 0.8,
         "description": "La première nuit, vous choisissez un mentor parmi les joueurs vivants. Si votre mentor meurt (quelle qu'en soit la cause), vous basculez du côté des loups.",
-        "ui_icon": "ES",
+        "ui_icon": "🌿",
     },
     "Villageois Maudit": {
         "camp": "Village / Loups",
@@ -107,7 +107,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 0.8,
         "description": "Villageois ordinaire au départ. Si les loups vous choisissent comme victime une nuit, au lieu de mourir vous vous transformez en loup-garou. Ce pouvoir ne se déclenche qu'une seule fois.",
-        "ui_icon": "VM",
+        "ui_icon": "💀",
     },
     "Sirène": {
         "camp": "Solo",
@@ -116,7 +116,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.1,
         "description": "Chaque nuit, vous envoûtez un joueur. Vous gagnez seule si tous les joueurs encore en vie (hors vous) sont envoûtés au moment de la vérification de victoire.",
-        "ui_icon": "SI",
+        "ui_icon": "🌊",
     },
     "Pyromane": {
         "camp": "Solo",
@@ -125,7 +125,7 @@ ROLE_CATALOG = {
         "night_action": True,
         "weight": 1.3,
         "description": "Chaque nuit, vous aspergez un joueur d'essence (ou allumez le feu pour tuer tous les aspergés). Vous gagnez seul si vous éliminez ainsi tous les autres joueurs en vie.",
-        "ui_icon": "PY",
+        "ui_icon": "🔥",
     },
     "Villageois": {
         "camp": "Village",
@@ -134,7 +134,7 @@ ROLE_CATALOG = {
         "night_action": False,
         "weight": 1.0,
         "description": "Le villageois n'a pas de pouvoir spécial et vote le jour pour éliminer les loups.",
-        "ui_icon": "VI",
+        "ui_icon": "🏘",
     },
 }
 
@@ -161,15 +161,22 @@ DEFAULT_ROLE_CONFIG = {
     "Sorcière": 1,
 }
 
+# Groupes de rôles mutuellement exclusifs : dans chaque groupe,
+# un seul rôle peut être actif (count > 0) à la fois.
+EXCLUSIVE_ROLE_GROUPS = [
+    {"Enfant sauvage", "Villageois Maudit"},
+]
+
 # Ordre officiel des tours de nuit
+# Le Salvateur agit EN PREMIER (avant les loups) pour pouvoir protéger avant toute mort.
 NIGHT_ORDER = [
     "cupidon",    # nuit 1 seulement
     "wild_child", # nuit 1 seulement
+    "salvateur",  # protège AVANT les loups et le Pyromane
     "seer",
     "wolves",
     "father",
     "witch",
-    "salvateur",
     "fox",
     "siren",
     "arsonist",
@@ -240,6 +247,24 @@ def check_winner(players):
         return "Village"
     if alive_wolves >= alive_non_wolves:
         return "Loups"
+    return None
+
+
+def exclusive_role_conflict(role_name: str, role_config: dict) -> str | None:
+    """
+    Vérifie si l'ajout du rôle role_name entraîne un conflit d'exclusivité.
+    Retourne un message d'erreur si conflit, sinon None.
+
+    :param role_name: Nom du rôle que l'on tente d'activer (str).
+    :param role_config: Config actuelle {nom_rôle: quantité} (dict).
+    :return: str message d'erreur ou None.
+    """
+    for group in EXCLUSIVE_ROLE_GROUPS:
+        if role_name in group:
+            conflicting = [r for r in group if r != role_name and role_config.get(r, 0) > 0]
+            if conflicting:
+                names = " et ".join(conflicting)
+                return f"« {role_name} » est incompatible avec « {names} » (choisir l'un ou l'autre)."
     return None
 
 
@@ -402,11 +427,16 @@ def serialize_players_for(player_id, players, reveal_all=False):
     """
     Sérialise la liste des joueurs du point de vue de player_id.
     Inclut les informations sur les amoureux, les envoûtés, les aspergés, etc.
+
+    Règles de visibilité :
+    - is_charmed : visible uniquement par la Sirène (liste complète) et par le joueur concerné lui-même.
+    - is_fueled  : visible uniquement par le Pyromane.
     """
     data = []
     current_player = players[player_id] if 0 <= player_id < len(players) else None
     current_is_wolf_side = is_wolf_player(current_player) if current_player else False
     my_lover_id = current_player.get("lover_id") if current_player else None
+    current_role = current_player.get("role") if current_player else None
 
     # Récupère les amoureux côté serveur pour savoir qui peut voir "is_lover"
     cupidon_id = None
@@ -416,6 +446,18 @@ def serialize_players_for(player_id, players, reveal_all=False):
             break
 
     for p in players:
+        # Sirène : seule elle voit tous les envoûtés ; un envoûté ne sait que son propre état
+        can_see_charmed_for_p = (
+            reveal_all
+            or current_role == "Sirène"
+            or p["id"] == player_id  # le joueur sait s'il est lui-même envoûté
+        )
+        # Pyromane : seul lui voit les aspergés
+        can_see_fueled_for_p = (
+            reveal_all
+            or current_role == "Pyromane"
+        )
+
         entry = {
             "id":             p["id"],
             "name":           p["name"],
@@ -425,8 +467,8 @@ def serialize_players_for(player_id, players, reveal_all=False):
             # is_lover visible uniquement : soi-même, son partenaire, Cupidon, fin de partie
             "is_lover":       False,
             "lover_id":       None,
-            "is_charmed":     p.get("is_charmed", False),
-            "is_fueled":      p.get("is_fueled", False),
+            "is_charmed":     p.get("is_charmed", False) if can_see_charmed_for_p else False,
+            "is_fueled":      p.get("is_fueled", False) if can_see_fueled_for_p else False,
             "wild_child_turned": False,
             "maudit_converted":  False,
         }
