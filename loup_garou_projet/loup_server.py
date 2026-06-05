@@ -391,6 +391,7 @@ class WerewolfServer:
             fueled_list_visible = fueled_list
         else:
             fueled_list_visible = []  # Les autres ne savent pas qui est aspergé
+        salvateur_last_name = None  # Initialisé à None par défaut
         if current_role == "Salvateur" and self.salvateur_last_protected is not None:
             if self.salvateur_last_protected < len(self.players):
                 salvateur_last_name = self.players[self.salvateur_last_protected]["name"]
