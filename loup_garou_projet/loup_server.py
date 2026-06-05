@@ -448,6 +448,42 @@ class WerewolfServer:
 
     # ── Gestion des connexions ────────────────────────────────────────────────
 
+    def handle_restart_game(self, player_id: int):
+        """
+        Remet le serveur en phase lobby (nouvelle partie) sans fermer les connexions TCP.
+        Les joueurs déjà connectés sont réinscrits automatiquement via reset_lobby_state +
+        re-broadcast, puis chaque client en phase « end » reçoit un snapshot indiquant
+        phase='lobby' et peut retourner dans le salon sans se reconnecter.
+
+        :param player_id: Indice du joueur qui demande le redémarrage (int).
+        :return: Snapshot d'état pour le demandeur (dict).
+        """
+        # Mémoriser les noms des joueurs actuellement connectés avant reset
+        connected_names = {
+            p["id"]: p["name"]
+            for p in self.players
+            if p.get("connected") and p["id"] < len(self.clients) and self.clients[p["id"]] is not None
+        }
+        self.reset_lobby_state()
+        # Ré-enregistrer chaque joueur encore connecté dans le nouveau lobby
+        for pid, name in connected_names.items():
+            while len(self.players) <= pid:
+                self.players.append({
+                    "id":            len(self.players),
+                    "name":          f"Joueur {len(self.players) + 1}",
+                    "role":          None,
+                    "alive":         True,
+                    "connected":     False,
+                    "revealed_role": None,
+                })
+            self.players[pid].update({"name": name, "connected": True, "alive": True})
+            if self.host_id == 0:
+                self.host_id = pid  # premier connecté = hôte
+        self.message = "Nouvelle partie ! En attente des joueurs."
+        self.append_chat("Systeme", self.message, system=True)
+        self.broadcast_snapshots()
+        return self.player_snapshot(player_id)
+
     def remove_client(self, player_id: int):
         """
         Déconnecte un joueur : ferme son slot, le marque mort/déconnecté et diffuse les snapshots.
@@ -1600,6 +1636,8 @@ class WerewolfServer:
                             response = self.handle_chat(player_id, msg)
                         elif kind == "sync_request":
                             response = self.player_snapshot(player_id)
+                        elif kind == "restart_game":
+                            response = self.handle_restart_game(player_id)
                         else:
                             response = {"type": "error", "message": "Commande inconnue."}
                     if response is not None:

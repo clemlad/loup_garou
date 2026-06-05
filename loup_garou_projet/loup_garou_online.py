@@ -1545,8 +1545,12 @@ class WerewolfOnlineGame:
             self.screen.blit(row_surf, row.topleft)
 
             name_col = WHITE_SOFT if alive else GREY_DIM
-            # Nom
-            draw_text(self.screen, p["name"][:14], f["xs"], name_col, topleft=(col_name + 4, y + 5))
+            # Indicateur vivant/mort + Nom
+            status_icon = "✓ " if alive else "✗ "
+            status_col  = (80, 220, 100) if alive else (220, 70, 70)
+            draw_text(self.screen, status_icon, f["xs"], status_col, topleft=(col_name + 4, y + 5))
+            # Décaler le nom pour laisser la place à l'icône (~14px)
+            draw_text(self.screen, p["name"][:13], f["xs"], name_col, topleft=(col_name + 20, y + 5))
             # Rôle initial
             draw_text(self.screen, role_ini[:16],  f["xs"], CYAN_COOL,  topleft=(col_init,  y + 5))
             # Rôle final (en rouge si différent du rôle initial)
@@ -1856,8 +1860,10 @@ class WerewolfOnlineGame:
             return
 
         if self.phase == "end" and self.btn_end.is_clicked(event.pos):
-            self.return_to_lobby = True
-            self.running = False
+            # Demande au serveur de relancer un lobby (sans fermer la connexion TCP).
+            # Tous les joueurs encore connectés reçoivent un snapshot phase='lobby'
+            # et restent dans la partie sans avoir à se reconnecter.
+            self.network.send({"type": "restart_game"})
             return
 
         # Phase aube : seul l'hôte passe au jour
