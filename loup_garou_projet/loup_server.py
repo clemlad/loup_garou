@@ -672,7 +672,7 @@ class WerewolfServer:
         if self.day_count == 1:
             self.night_step = "cupidon"
         else:
-            self.night_step = "seer"
+            self.night_step = "salvateur"  # Le Salvateur agit en premier dès la nuit 2
         self._advance_if_no_role()
         self.message = f"Nuit {self.day_count} : les rôles de nuit agissent dans l'ordre."
         self.broadcast_snapshots()

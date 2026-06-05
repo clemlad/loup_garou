@@ -148,11 +148,15 @@ SPECIAL_ROLE_NAMES = [
     "Chasseur",
     "Salvateur",
     "Renard",
-    "Enfant sauvage",
-    "Villageois Maudit",
     "Sniper",
     "Sirène",
     "Pyromane",
+]
+
+# Rôles à double camp (Village / Loups) : mutuellement exclusifs entre eux
+EXCLUSIVE_ROLE_NAMES = [
+    "Enfant sauvage",
+    "Villageois Maudit",
 ]
 
 DEFAULT_ROLE_CONFIG = {

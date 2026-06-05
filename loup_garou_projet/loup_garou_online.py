@@ -13,7 +13,7 @@ import pygame
 
 from loup_shared import (
     MIN_PLAYERS, MAX_PLAYERS,
-    ROLE_CATALOG, CLASSIC_ROLE_NAMES, SPECIAL_ROLE_NAMES, AVAILABLE_ROLES,
+    ROLE_CATALOG, CLASSIC_ROLE_NAMES, SPECIAL_ROLE_NAMES, EXCLUSIVE_ROLE_NAMES, AVAILABLE_ROLES,
     camp_balance, min_players_for_config, normalize_role_config, role_config_error,
     is_wolf_role, is_wolf_player, exclusive_role_conflict,
 )
@@ -59,11 +59,11 @@ DAY_BG_BOT   = (70, 100, 60)
 NIGHT_STEP_INFO = [
     ("cupidon",    "CUP",  CYAN_COOL),
     ("wild_child", "ENF",  GOLD_WARM),
+    ("salvateur",  "SAL",  (60, 160, 80)),
     ("seer",       "VOY",  CYAN_COOL),
     ("wolves",     "LOU",  WOLF_RED),
-    ("father",     "PÈR",  (160, 90, 20)),
+    ("father",     "PER",  (160, 90, 20)),
     ("witch",      "SOR",  (160, 60, 180)),
-    ("salvateur",  "SAL",  (60, 160, 80)),
     ("fox",        "REN",  (180, 140, 40)),
     ("siren",      "SIR",  (60, 120, 200)),
     ("arsonist",   "PYR",  (220, 80, 20)),
@@ -227,7 +227,7 @@ class WerewolfOnlineGame:
         self.btn_father_skip   = Button("PASSER",            BTN_NEUTRAL,    BTN_NEUTRAL_H)
         self.btn_send_chat     = Button("ENVOYER",           BTN_PRIMARY,    BTN_PRIMARY_H)
         self.btn_end           = Button("RETOUR AU MENU SERVEUR", BTN_NEUTRAL,    BTN_NEUTRAL_H)
-        self.btn_dawn_advance  = Button("☀  PASSER AU JOUR",     BTN_SUCCESS,    BTN_SUCCESS_H)
+        self.btn_dawn_advance  = Button("[>] PASSER AU JOUR",     BTN_SUCCESS,    BTN_SUCCESS_H)
         self.chat_input        = InputBox(placeholder="Écris un message...", max_len=220)
 
         # Nouveaux boutons pour les rôles additionnels
@@ -457,7 +457,7 @@ class WerewolfOnlineGame:
                     if any(p["id"] == pid and p["alive"] for p in self.players)
                 ]
             elif mt == "error":
-                self.message = "⚠ " + msg.get("message", "")
+                self.message = "[!] " + msg.get("message", "")
             elif mt == "info":
                 self.message = msg.get("message", self.message)
 
@@ -484,7 +484,7 @@ class WerewolfOnlineGame:
         if delta > 0 and val > 0:
             conflict_msg = exclusive_role_conflict(role_name, self.role_config)
             if conflict_msg:
-                self.message = f"⚠ {conflict_msg}"
+                self.message = f"[!] {conflict_msg}"
                 return
         if sum(new.values()) > MAX_PLAYERS:
             self.message = f"Trop de roles (max {MAX_PLAYERS} joueurs)."
@@ -836,7 +836,8 @@ class WerewolfOnlineGame:
         self.role_plus_rects  = {}
 
         sections = [("Roles classiques", CLASSIC_ROLE_NAMES),
-                    ("Roles speciaux",   SPECIAL_ROLE_NAMES)]
+                    ("Roles speciaux",   SPECIAL_ROLE_NAMES),
+                    ("Roles double-camp", EXCLUSIVE_ROLE_NAMES)]
         ROW_H   = 46
         HEAD_H  = 26
         GAP     = 4
@@ -931,13 +932,6 @@ class WerewolfOnlineGame:
             draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
                       center=cnt_r.center)
 
-            # Badge "OU" pour les rôles exclusifs (Enfant sauvage / Villageois Maudit)
-            from loup_shared import EXCLUSIVE_ROLE_GROUPS
-            for group in EXCLUSIVE_ROLE_GROUPS:
-                if rn in group:
-                    draw_text(self.screen, "⊘ exclusif", f["xs"], (180, 100, 60),
-                              topleft=(row.x + 52, row.y + 22))
-                    break
             draw_text(self.screen, str(display_count), f["xs"], MOON_SILVER,
                       center=cnt_r.center)
 
@@ -1185,18 +1179,18 @@ class WerewolfOnlineGame:
         # Phase aube : annonce des morts à tous avant le vote du jour
         if self.phase == "dawn":
             if self.last_deaths_with_roles:
-                line("☽  Cette nuit, les éliminés sont :", (255, 180, 80))
+                line("[~] Cette nuit, les elimines sont :", (255, 180, 80))
                 for entry in self.last_deaths_with_roles:
                     nom  = entry.get("nom",  "?")
                     role = entry.get("role", "?")
-                    line(f"  💀 {nom} était {role}", BLOOD_RED)
+                    line(f"  [X] {nom} etait {role}", BLOOD_RED)
             elif self.last_deaths:
                 # Fallback si last_deaths_with_roles non reçu
-                line("☽  Cette nuit, les morts sont :", (255, 180, 80))
+                line("[~] Cette nuit, les morts sont :", (255, 180, 80))
                 for name in self.last_deaths:
-                    line(f"  💀 {name}", BLOOD_RED)
+                    line(f"  [X] {name}", BLOOD_RED)
             else:
-                line("☽  Personne n'est mort cette nuit !", (100, 220, 120))
+                line("[~] Personne n'est mort cette nuit !", (100, 220, 120))
             if self.is_host():
                 line("(Hôte) Cliquez sur 'PASSER AU JOUR' pour lancer le vote.", GOLD_PALE)
             else:
@@ -1549,7 +1543,7 @@ class WerewolfOnlineGame:
 
             name_col = WHITE_SOFT if alive else GREY_DIM
             # Indicateur vivant/mort + Nom
-            status_icon = "✓ " if alive else "✗ "
+            status_icon = "[+] " if alive else "[-] "
             status_col  = (80, 220, 100) if alive else (220, 70, 70)
             draw_text(self.screen, status_icon, f["xs"], status_col, topleft=(col_name + 4, y + 5))
             # Décaler le nom pour laisser la place à l'icône (~14px)
@@ -1655,7 +1649,7 @@ class WerewolfOnlineGame:
                 acol = (140, 100, 180)  # violet pâle = chat des esprits
             else:
                 acol = GOLD_WARM
-            prefix = "☽ " if dead_only else ""  # icône lune pour les morts
+            prefix = "[~] " if dead_only else ""  # icône lune pour les morts
             draw_text(self.screen, prefix + author + ":", f["xs"], acol,
                       topleft=(self.chat_rect.x + 12, y))
             msg_txt = entry.get("message", "")
@@ -1708,7 +1702,7 @@ class WerewolfOnlineGame:
         if self.phase == "lobby" and self.is_host():
             my_ip = get_local_ip()
             copied = (self.t - self._ip_copied_at) < 2.0 if hasattr(self, "_ip_copied_at") else False
-            ip_label = f"Ton IP : {my_ip}  ✓ Copié !" if copied else f"Ton IP : {my_ip}  [clic pour copier]"
+            ip_label = f"Ton IP : {my_ip}  [OK] Copie !" if copied else f"Ton IP : {my_ip}  [clic pour copier]"
             ip_color = GOLD_PALE if copied else GOLD_WARM
             ip_surf  = f["small"].render(ip_label, True, ip_color)
             self._ip_label_rect = pygame.Rect(

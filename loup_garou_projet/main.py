@@ -46,9 +46,9 @@ def _check_and_install_dependencies():
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", "--quiet"] + missing
             )
-            print("[Loup-Garou] Installation terminée ✔")
+            print("[Loup-Garou] Installation terminee [OK]")
         except subprocess.CalledProcessError as err:
-            print(f"[Loup-Garou] ⚠ Impossible d'installer les dépendances : {err}")
+            print(f"[Loup-Garou] [!] Impossible d'installer les dependances : {err}")
             print(f"[Loup-Garou]   Lance manuellement : pip install {' '.join(missing)}")
             sys.exit(1)
 
@@ -166,10 +166,10 @@ class Launcher:
         _csv = Path(__file__).parent / "moderation_loup_garou_fr_en.csv"
         self.moderator = ChatModerator(str(_csv))
         self.btn_solo    = Button("MODE SOLO",       BTN_NEUTRAL,  BTN_NEUTRAL_H,  icon="o)")
-        self.btn_online  = Button("MODE EN LIGNE",   BTN_PRIMARY,  BTN_PRIMARY_H,  icon="🐺")
-        self.btn_quit    = Button("QUITTER",          BTN_DANGER,   BTN_DANGER_H,   icon="✕")
-        self.btn_create  = Button("CREER UN SALON",   BTN_SUCCESS,  BTN_SUCCESS_H,  icon="⚔")
-        self.btn_join    = Button("REJOINDRE",         BTN_PRIMARY,  BTN_PRIMARY_H,  icon="🚪")
+        self.btn_online  = Button("MODE EN LIGNE",   BTN_PRIMARY,  BTN_PRIMARY_H,  icon="LG")
+        self.btn_quit    = Button("QUITTER",          BTN_DANGER,   BTN_DANGER_H,   icon="X")
+        self.btn_create  = Button("CREER UN SALON",   BTN_SUCCESS,  BTN_SUCCESS_H,  icon=">>")
+        self.btn_join    = Button("REJOINDRE",         BTN_PRIMARY,  BTN_PRIMARY_H,  icon="->")
         self.btn_back    = Button("RETOUR",            BTN_DANGER,   BTN_DANGER_H)
         self.stepper     = Stepper("Nombre de joueurs (IA inclus)", 6, MIN_PLAYERS, 12)
         self.btn_launch  = Button("LANCER LA PARTIE", BTN_SUCCESS,  BTN_SUCCESS_H,  icon=">")
@@ -214,12 +214,12 @@ class Launcher:
         """
         name = self.valid_name()
         if not name:
-            self.message = "⚠  Choisis un pseudonyme avant de continuer."
+            self.message = "[!] Choisis un pseudonyme avant de continuer."
             return False
         # Contrôle du pseudo contre la liste de termes grossiers
         _, flagged = self.moderator.moderate(name)
         if flagged:
-            self.message = "⚠  Ce pseudonyme contient des termes inappropriés."
+            self.message = "[!] Ce pseudonyme contient des termes inappropries."
             return False
         return True
 
@@ -523,10 +523,10 @@ class Launcher:
                           f"Roles : {srv.get('roles', '')}",
                           f["xs"] if "xs" in f else f["small"], GREY_DIM,
                           topleft=(row.x + 60, row.y + 58))
-                draw_text(self.screen, "🌕", f["big"], GOLD_WARM,
+                draw_text(self.screen, "( )", f["big"], GOLD_WARM,
                           center=(row.x + 34, row.centery))
                 if sel:
-                    draw_text(self.screen, "▶ Cliquer pour rejoindre", f["small"],
+                    draw_text(self.screen, ">> Cliquer pour rejoindre", f["small"],
                               GOLD_WARM, topleft=(row.right - 200, row.y + 30))
                 self.row_rects.append((i, row))
                 y += 92

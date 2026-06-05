@@ -2148,7 +2148,7 @@ class WerewolfSoloGame:
         elif self.phase == "day" and p["id"] in self.day_votes:
             tgt_id   = self.day_votes[p["id"]]
             tgt_name = self.players[tgt_id]["name"] if tgt_id < len(self.players) else "?"
-            draw_text(self.screen, f"▶ {tgt_name}", f["xs"], GOLD_PALE,
+            draw_text(self.screen, f">> {tgt_name}", f["xs"], GOLD_PALE,
                       topleft=(rect.x + 58, rect.y + 26))
         else:
             info = role_str if reveal else "Rôle inconnu"
