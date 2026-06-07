@@ -8,6 +8,7 @@ le client ne calcule rien lui-même, il affiche et envoie des actions.
 import json
 import socket
 import threading
+import time
 
 import pygame
 
@@ -199,6 +200,9 @@ class WerewolfOnlineGame:
         self.is_hunter_turn           = False
         self.sniper_target_name       = None
         self.fox_result               = None
+        self.dawn_remaining           = None  # secondes restantes avant passage auto au jour
+        self._dawn_remaining_at_recv  = None  # valeur reçue du serveur
+        self._dawn_recv_time          = None  # heure locale de réception
         self.fox_power_active         = True
         self.lover_partner_name       = None
         self.mentor_name              = None
@@ -403,6 +407,14 @@ class WerewolfOnlineGame:
                 self.sniper_target_name    = msg.get("sniper_target_name")
                 self.fox_result            = msg.get("fox_result")
                 self.fox_power_active      = msg.get("fox_power_active", True)
+                raw_dawn = msg.get("dawn_remaining")
+                if raw_dawn is not None:
+                    self._dawn_remaining_at_recv = raw_dawn
+                    self._dawn_recv_time = time.monotonic()
+                else:
+                    self._dawn_remaining_at_recv = None
+                    self._dawn_recv_time = None
+                self.dawn_remaining        = raw_dawn
                 self.lover_partner_name    = msg.get("lover_partner_name")
                 self.mentor_name           = msg.get("mentor_name")
                 self.charmed_list          = msg.get("charmed_list", [])
@@ -1149,6 +1161,13 @@ class WerewolfOnlineGame:
             if not self.fox_power_active and role == "Renard":
                 line("Votre pouvoir est perdu.", GREY_DIM)
 
+        # Résultat Renard visible aussi à l'aube (la nuit vient de se terminer)
+        if self.phase == "dawn" and role == "Renard":
+            if self.fox_result:
+                line(f"Renard : {self.fox_result}", (180, 200, 60))
+            if not self.fox_power_active:
+                line("Votre pouvoir est perdu.", GREY_DIM)
+
         # Infos de rôle persistantes
         if self.sniper_target_name:
             alive_flag = next((p["alive"] for p in self.players
@@ -1182,8 +1201,8 @@ class WerewolfOnlineGame:
                 line("[~] Cette nuit, les elimines sont :", (255, 180, 80))
                 for entry in self.last_deaths_with_roles:
                     nom  = entry.get("nom",  "?")
-                    role = entry.get("role", "?")
-                    line(f"  [X] {nom} etait {role}", BLOOD_RED)
+                    role_mort = entry.get("role", "?")
+                    line(f"  [X] {nom} etait {role_mort}", BLOOD_RED)
             elif self.last_deaths:
                 # Fallback si last_deaths_with_roles non reçu
                 line("[~] Cette nuit, les morts sont :", (255, 180, 80))
@@ -1191,10 +1210,9 @@ class WerewolfOnlineGame:
                     line(f"  [X] {name}", BLOOD_RED)
             else:
                 line("[~] Personne n'est mort cette nuit !", (100, 220, 120))
-            if self.is_host():
-                line("(Hôte) Cliquez sur 'PASSER AU JOUR' pour lancer le vote.", GOLD_PALE)
-            else:
-                line("En attente que l'hôte passe au jour...", GREY_DIM)
+            # Compte à rebours automatique
+            secs = self.dawn_remaining if self.dawn_remaining is not None else "?"
+            line(f"Le jour commence dans {secs}s — discutez !", (255, 220, 80))
 
         pygame.draw.line(self.screen, (58, 48, 88),
                          (self.center_rect.x + 18, y + 4),
@@ -1219,10 +1237,8 @@ class WerewolfOnlineGame:
             self._draw_hunter_buttons(f, mouse)
             return
 
-        # Phase aube : bouton pour passer au jour (hôte seulement)
+        # Phase aube : plus de bouton, le passage au jour est automatique
         if self.phase == "dawn":
-            if self.is_host():
-                self.btn_dawn_advance.draw(self.screen, f["small"], mouse, enabled=True)
             return
 
         if self.phase == "night" and self.can_act:
@@ -1863,11 +1879,7 @@ class WerewolfOnlineGame:
             self.network.send({"type": "restart_game"})
             return
 
-        # Phase aube : seul l'hôte passe au jour
-        if self.phase == "dawn" and self.is_host():
-            if self.btn_dawn_advance.is_clicked(event.pos):
-                self.network.send({"type": "dawn_advance"})
-                return
+        # Phase aube : passage au jour automatique, aucun clic nécessaire
 
         # Sélection joueur (inclut multi-select)
         if self._try_select_player(event.pos):
@@ -1975,6 +1987,10 @@ class WerewolfOnlineGame:
             dt = self.clock.tick(FPS)
             self.t += dt * 0.001
             self.process_network()
+            # Interpolation locale du compte à rebours de l'aube
+            if self.phase == "dawn" and self._dawn_remaining_at_recv is not None:
+                elapsed = time.monotonic() - self._dawn_recv_time
+                self.dawn_remaining = max(0, round(self._dawn_remaining_at_recv - elapsed))
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False

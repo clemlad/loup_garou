@@ -6,6 +6,7 @@ import json
 import random
 import socket
 import threading
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -57,6 +58,8 @@ class WerewolfServer:
         self.clients: list = []
         self.chat_history: list = []
         self.moderator = ChatModerator(MODERATION_CSV)
+        self._dawn_timer: threading.Timer = None
+        self._dawn_start: float = None
         self.reset_lobby_state()
 
     # ── Helpers ──────────────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ class WerewolfServer:
         self.host_id = 0
         self.game_started = False
         self.phase = "lobby"
+        self._cancel_dawn_timer()
         self.day_count = 0
         self.winner = None
         self.message = f"En attente des joueurs. Minimum : {MIN_PLAYERS}."
@@ -150,6 +154,57 @@ class WerewolfServer:
                  "wolf_only": wolf_only, "dead_only": dead_only}
         self.chat_history.append(entry)
         self.chat_history = self.chat_history[-80:]
+
+    DAWN_DURATION = 10  # secondes avant passage automatique au jour
+
+    def _cancel_dawn_timer(self):
+        """Annule le timer d'aube en cours s'il existe."""
+        timer = getattr(self, "_dawn_timer", None)
+        if timer is not None:
+            timer.cancel()
+        self._dawn_timer = None
+        self._dawn_start = None
+
+    def _start_dawn_timer(self):
+        """Lance un timer de DAWN_DURATION secondes puis passe au jour automatiquement."""
+        self._cancel_dawn_timer()
+        self._dawn_start = time.monotonic()
+        self._dawn_timer = threading.Timer(self.DAWN_DURATION, self._auto_dawn_advance)
+        self._dawn_timer.daemon = True
+        self._dawn_timer.start()
+
+    def _auto_dawn_advance(self):
+        """Callback du timer : passe au jour depuis l'aube (thread-safe via le lock)."""
+        with self.lock:
+            if self.phase != "dawn":
+                return
+            self._dawn_timer = None
+            # Réutilise start_day_from_dawn en tant qu'hôte interne
+            self._do_dawn_advance()
+
+    def _do_dawn_advance(self):
+        """Logique interne de passage aube→jour (sans vérification hôte ni phase)."""
+        if self.pending_hunter_queue:
+            hunter_id = self.pending_hunter_queue[0]
+            if self.players[hunter_id].get("connected"):
+                self.phase = "hunter_day"
+                self.message = (f"{self.players[hunter_id]['name']} (Chasseur) a été éliminé cette nuit ! "
+                                f"Il doit choisir un joueur à emporter avec lui !")
+                self.broadcast_snapshots()
+                return
+            else:
+                self._auto_hunter_shoot(hunter_id)
+                self.pending_hunter_queue.pop(0)
+
+        self.winner = check_winner(self.players)
+        if self.winner is not None:
+            self.phase   = "end"
+            self.message = f"Victoire du camp : {self.winner} !"
+        else:
+            self.phase   = "day"
+            self.message = ("Jour : " + ", ".join(self.last_deaths) + " éliminé(s) cette nuit. Votez."
+                            if self.last_deaths else "Jour : personne n'est mort cette nuit. Votez.")
+        self.broadcast_snapshots()
 
     def broadcast_snapshots(self):
         """Envoie le snapshot d'état personnalisé à chaque joueur connecté."""
@@ -433,6 +488,8 @@ class WerewolfServer:
             "is_hunter_turn":         is_hunter_turn,
             "sniper_target_name":     sniper_target_name,
             "fox_power_active":       self.fox_power_active,
+            "dawn_remaining":         (max(0, round(self.DAWN_DURATION - (time.monotonic() - self._dawn_start)))
+                                       if self.phase == "dawn" and self._dawn_start is not None else None),
             "lover_partner_name":     lover_partner_name,
             "mentor_name":            mentor_name,
             "charmed_list":           charmed_list_visible,
@@ -459,6 +516,9 @@ class WerewolfServer:
         :param player_id: Indice du joueur qui demande le redémarrage (int).
         :return: Snapshot d'état pour le demandeur (dict).
         """
+        # Seul l'hôte peut relancer une partie
+        if player_id != self.host_id:
+            return {"type": "error", "message": "Seul l'hôte peut relancer une partie."}
         # Mémoriser les noms des joueurs actuellement connectés avant reset
         connected_names = {
             p["id"]: p["name"]
@@ -916,10 +976,11 @@ class WerewolfServer:
             ]
             if self.last_deaths:
                 self.message = ("Aube : " + ", ".join(self.last_deaths) +
-                                " éliminé(s) cette nuit. Cliquez sur 'Passer au jour' pour continuer.")
+                                f" éliminé(s) cette nuit. Le jour commence dans {self.DAWN_DURATION}s.")
             else:
                 self.last_deaths_with_roles = []
-                self.message = "Aube : personne n'est mort cette nuit. Cliquez sur 'Passer au jour' pour continuer."
+                self.message = f"Aube : personne n'est mort cette nuit. Le jour commence dans {self.DAWN_DURATION}s."
+            self._start_dawn_timer()
             self.broadcast_snapshots()
 
     def start_day_from_dawn(self, player_id: int):
@@ -932,28 +993,9 @@ class WerewolfServer:
         if player_id != self.host_id:
             return {"type": "error", "message": "Seul l'hôte peut passer au jour."}
 
-        # Chasseur(s) en attente (nuit) → agissent maintenant
-        if self.pending_hunter_queue:
-            hunter_id = self.pending_hunter_queue[0]
-            if self.players[hunter_id].get("connected"):
-                self.phase = "hunter_day"   # phase spéciale : chasseur agit avant le vote
-                self.message = (f"{self.players[hunter_id]['name']} (Chasseur) a été éliminé cette nuit ! "
-                                f"Il doit choisir un joueur à emporter avec lui !")
-                self.broadcast_snapshots()
-                return self.player_snapshot(player_id)
-            else:
-                self._auto_hunter_shoot(hunter_id)
-                self.pending_hunter_queue.pop(0)
-
-        self.winner = check_winner(self.players)
-        if self.winner is not None:
-            self.phase   = "end"
-            self.message = f"Victoire du camp : {self.winner} !"
-        else:
-            self.phase   = "day"
-            self.message = ("Jour : " + ", ".join(self.last_deaths) + " éliminé(s) cette nuit. Votez."
-                            if self.last_deaths else "Jour : personne n'est mort cette nuit. Votez.")
-        self.broadcast_snapshots()
+        # Annuler le timer automatique (l'hôte passe manuellement)
+        self._cancel_dawn_timer()
+        self._do_dawn_advance()
         return self.player_snapshot(player_id)
 
     def _auto_hunter_shoot(self, hunter_id: int):
@@ -1643,6 +1685,7 @@ class WerewolfServer:
     def shutdown(self):
         """Arrête le serveur proprement : notifie les clients, ferme toutes les connexions et le socket TCP."""
         self.running = False
+        self._cancel_dawn_timer()
         self.broadcaster.stop()
         with self.lock:
             for i, conn in enumerate(self.clients):
